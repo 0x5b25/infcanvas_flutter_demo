@@ -1,6 +1,10 @@
 # infcanvas
 
-A new Flutter project.
+An drawing app with (nearly) infinite canvas size
+
+## IMPORTANT
+
+This flutter app uses a specially modified flutter engine from [this repo](https://https://github.com/0x5b25/flutter_engine_modified), build it, and follow the [official wiki](https://github.com/flutter/flutter/wiki/Setting-up-the-Engine-development-environment) on how to build and use a custom engine!
 
 ## Getting Started
 
