@@ -5,17 +5,23 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Flutter: Attach to Device",
+            "type": "dart",
+            "request": "attach"
+        },
+        {
             "name": "Flutter Run",
             "request": "launch",
             "type": "dart",
-            "args": ["--local-engine=host_debug", "--local-engine-src-path", "D:/google/flutter/engine/src"]            
+            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/flutter/engine/src", "--verbose"],
+            "justMyCode":false
         },
         {
             "name": "Flutter Attach",
             "request": "attach",
             "type": "dart",
             "observatoryUri": "http://127.0.0.1:10000",
-            "args": ["--local-engine=host_debug", "--local-engine-src-path", "D:/google/flutter/engine/src"]
+            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/flutter/engine/src"]
         }
     ]
 }
