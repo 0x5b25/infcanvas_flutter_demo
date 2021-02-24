@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import 'dart:async';
-import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
@@ -54,14 +54,14 @@ class MyHomePage extends StatefulWidget {
 
 
 class CanvasParams{
-    ImageExt tree;
+    ui.ImageExt tree;
     int height;
     Offset offset;
 
     CanvasParams(){
       height = 0;
       offset = Offset.zero;
-      tree = ImageExt();
+      tree = ui.ImageExt();
     }
 }
 
@@ -76,14 +76,50 @@ class _MyHomePageState extends State<MyHomePage> {
   ChangeNotifier cn;
   Timer pt;
 
+  ValueNotifier<ui.Image> vn;
+
   CanvasParams p = CanvasParams();
+
+  ui.PaintShader shader;
+
+  ui.InfCanvasInstance instance;
+  GlobalKey cvKey = GlobalKey();
+  
 
   _MyHomePageState(){
     cn = ChangeNotifier();
-    testPainter = TestCanvas(cn,p);
+    vn = ValueNotifier(null);
+    testPainter = TestCanvas(vn,p);
     pt = Timer.periodic(Duration(milliseconds: 300), (timer) {setState(() {
       
     }); });
+    instance = ui.InfCanvasInstance();
+    ui.ShaderProgram shaderProg = ui.ShaderProgram(
+      '''
+//in fragmentProcessor color_map;
+
+uniform float2 pos;
+uniform float uvScale;
+uniform half exp;
+uniform float3 in_colors0;
+
+float4 permute ( float4 x) { return mod ((34.0 * x + 1.0) * x , 289.0) ; }
+
+
+
+half4 main(float2 p) {
+	//half4 texColor = sample(color_map, p);
+	//if (length(abs(in_colors0 - pow(texColor.rgb, half3(exp)))) < scale)
+	//	discard;
+	//color = texColor;
+    float2 actualPos = p;
+    //return half4(float4(actualPos.x * uvScale, actualPos.y * uvScale, 0.0, 1.0));
+    return half4(0.3, 0.2, 0.5, 0.7);
+}
+      '''
+    );
+
+    shader = ui.PaintShader(shaderProg);
     
   }
 
@@ -110,6 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   onPointerMove: OnMove,
                   onPointerUp: OnMove,
                   child: CustomPaint(
+                    key: cvKey,
                     painter: testPainter
                   )
                 )
@@ -138,7 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 child: ClipRect(
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(
+                    filter: ui.ImageFilter.blur(
                       sigmaX: 30.0,
                       sigmaY: 30.0,
                     ),
@@ -188,13 +225,13 @@ class _MyHomePageState extends State<MyHomePage> {
                                 child: Text('Query VRAM'),
                                 onPressed: (){
                                  
-                                  var totalBytes = QueryGPUBudgetTotalBytes();
-                                  var cacheUsage = QueryGPUBudgetCacheUsage();
+                                  var totalBytes = ui.QueryGPUBudgetTotalBytes();
+                                  var cacheUsage = ui.QueryGPUBudgetCacheUsage();
 
                                   Future.wait([totalBytes, cacheUsage]).then((value){
                                     setState((){
                                       _vramTotal = value[0];
-                                      var usage = value[1] as GPUCacheStatus;
+                                      var usage = value[1] as ui.GPUCacheStatus;
                                       _vramUsed = usage.usedBytes;
                                       _vramCachedItem = usage.cachedItemCount;
                                     });
@@ -225,17 +262,42 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void OnMove(PointerEvent e) {
+
+    double w  = 0, h = 0;
+    final keyContext = cvKey.currentContext;
+    if (keyContext != null) {
+        // widget is visible
+      final box = keyContext.findRenderObject() as RenderBox;
+      w = box.size.width;
+      h = box.size.height;
+    }
+
     //_incrementCounter();
     //cn.notifyListeners();
     if(e.buttons & kPrimaryMouseButton != 0){
-      p.tree.DrawPointToTree(p.offset, e.localPosition, p.height);
-   
-      p.tree.PrepareImages()
-        .then((e){cn.notifyListeners();});
+      //Find out canvas size:
+      
+      ui.HierarchicalPoint lt = ui.HierarchicalPoint(
+        p.offset.dx + e.localPosition.dx - 25,
+        p.offset.dy + e.localPosition.dy - 25
+      );
+      ui.HierarchicalPoint rb = lt.Translated(Offset(50,50));
+      instance.DrawRect(lt, rb, p.height, 0, shader, Matrix4.identity().storage).then((_){
+        instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+          (img){vn.value = img;}
+        );
+      });
+      //p.tree.DrawPointToTree(p.offset,Size(50,50), e.localPosition, p.height, shader);
+      //cn.notifyListeners();
+      //p.tree.PrepareImages()
+      //  .then((e){cn.notifyListeners();});
     }else if(e.buttons & kSecondaryMouseButton != 0){
       setState(() {
-        p.offset += e.localDelta;
-        cn.notifyListeners();
+        p.offset -= e.localDelta;
+        //cn.notifyListeners();
+        instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+          (img){vn.value = img;}
+        );
       });
     }
     
@@ -246,13 +308,14 @@ class _MyHomePageState extends State<MyHomePage> {
 class TestCanvas extends CustomPainter{
 
   CanvasParams cp;
+  ValueNotifier<ui.Image> vn;
 
-  SkSLProgram shaderProg;
+  ui.SkSLProgram shaderProg;
   ByteData uniforms;
 
-  TestCanvas(Listenable l, CanvasParams this.cp):super(repaint:l){
+  TestCanvas(ValueNotifier<ui.Image> this.vn, CanvasParams this.cp):super(repaint:vn){
     //img = instantiateImageExt();
-    shaderProg = SkSLProgram(
+    shaderProg = ui.SkSLProgram(
       '''
 //in fragmentProcessor color_map;
 
@@ -303,12 +366,16 @@ half4 main(float2 p) {
   void paint(Canvas canvas, Size size) {
 
     //print("Cursor pos: ${touchPoint}");
-
-    cp.tree.DrawTreeToCanvas(canvas, size, cp.offset,cp.height);
-
     Paint p = Paint();
-    p.shader = shaderProg.GenerateShader(uniforms);
-    canvas.drawRect(Rect.fromCenter(center:Offset.zero, width: 480, height: 480),p );
+
+    //cp.tree.DrawTreeToCanvas(canvas, size, cp.offset,cp.height);
+    if(vn.value != null){
+      canvas.drawImage(vn.value, Offset.zero, p);
+    }
+
+    
+    //p.shader = shaderProg.GenerateShader(uniforms);
+    //canvas.drawRect(Rect.fromCenter(center:Offset.zero, width: 480, height: 480),p );
   }
   @override
   bool shouldRepaint(TestCanvas oldDelegate) => true;

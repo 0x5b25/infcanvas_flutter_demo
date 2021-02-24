@@ -13,7 +13,7 @@
             "name": "Flutter Run",
             "request": "launch",
             "type": "dart",
-            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/flutter/engine/src", "--verbose"],
+            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/flutter_dev/engine/src", "--verbose"],
             "justMyCode":false
         },
         {
@@ -21,7 +21,7 @@
             "request": "attach",
             "type": "dart",
             "observatoryUri": "http://127.0.0.1:10000",
-            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/flutter/engine/src"]
+            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/flutter_dev/engine/src"]
         }
     ]
 }
