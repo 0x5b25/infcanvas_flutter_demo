@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
@@ -19,6 +20,8 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'util.dart';
 
 void main() {
   // See https://github.com/flutter/flutter/wiki/Desktop-shells#target-platform-override
@@ -65,12 +68,26 @@ class CanvasParams{
     }
 }
 
+class StrokePoint{
+  Offset offset;
+  int height;
+}
+
+class CanvasReq{
+  Offset offset;
+  Size size;
+  int height;
+}
+
+
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
 
   int _vramTotal = 0;
   int _vramUsed = 0;
   int _vramCachedItem = 0;
+
+  
 
   TestCanvas testPainter;
   ChangeNotifier cn;
@@ -90,37 +107,118 @@ class _MyHomePageState extends State<MyHomePage> {
     cn = ChangeNotifier();
     vn = ValueNotifier(null);
     testPainter = TestCanvas(vn,p);
+    //Keep frame profilers alive by manually refreshing
     pt = Timer.periodic(Duration(milliseconds: 300), (timer) {setState(() {
       
     }); });
     instance = ui.InfCanvasInstance();
     ui.ShaderProgram shaderProg = ui.ShaderProgram(
       '''
-//in fragmentProcessor color_map;
+in fragmentProcessor color_map;
 
-uniform float2 pos;
+uniform float2 texPos;
+uniform float2 uvPos;
 uniform float uvScale;
 uniform half exp;
 uniform float3 in_colors0;
 
 float4 permute ( float4 x) { return mod ((34.0 * x + 1.0) * x , 289.0) ; }
 
+half4 alphaComposite(half4 c0, half4 c1){
+  //   * alpha composite: (color 0 over color 1)
+  //   * a01 = (1 - a0)·a1 + a0
+  //
+  //     r01 = ((1 - a0)·a1·r1 + a0·r0) / a01
+  //
+  //     g01 = ((1 - a0)·a1·g1 + a0·g0) / a01
+  //
+  //     b01 = ((1 - a0)·a1·b1 + a0·b0) / a01
+  //
 
+  //Premultiplied color:
+  //half a01 = (1 - c0.a) * c1.a + c0.a;
+  half4 c01 = c0 + c1 * (1-c0.a);
+
+  return c01;
+}
 
 half4 main(float2 p) {
-	//half4 texColor = sample(color_map, p);
-	//if (length(abs(in_colors0 - pow(texColor.rgb, half3(exp)))) < scale)
-	//	discard;
-	//color = texColor;
-    float2 actualPos = p;
-    //return half4(float4(actualPos.x * uvScale, actualPos.y * uvScale, 0.0, 1.0));
-    return half4(0.3, 0.2, 0.5, 0.7);
+  float2 localP = p - texPos;
+
+	half4 bgColor = sample(color_map, localP);
+	
+  half4 fgColor = half4(float4(localP.x * uvScale + uvPos.x, localP.y * uvScale + uvPos.y, 0.0, 1.0)*0.5 );
+
+  return alphaComposite(fgColor, bgColor);
+  //return fgColor;
+    //return half4(0.0, 0.0, 1.0, 1.0);
+    //float s = pointSize;
+    //return half4(float4(uvPos.x, uvPos.y, 0.0, 1.0));
 }
       '''
     );
 
     shader = ui.PaintShader(shaderProg);
+
+    _sps = TaskQueue(
+      (queue)async{
+        int step = 1;
+        //if(queue.length < 100) step = 1;
+        //else if(queue.length < 300) step = 2;
+        //else if(queue.length < 600) step = 3;
+        //else step = 4;
+        for(var pn = queue.front; pn != null; pn = pn.next){
+            var point = pn.val;
+            ui.HierarchicalPoint lt = ui.HierarchicalPoint(
+              point.offset.dx - 25,
+              point.offset.dy - 25
+            );
+            ui.HierarchicalPoint rb = lt.Translated(Offset(50,50));
+            await instance.DrawRect(lt, rb, point.height, 0, shader, Matrix4.identity().storage);
+            //.then((_){
+            //    instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+            //      (img){vn.value = img;}
+            //    );
+            //  });
+        }
+
+        return null;
+      },
+        finalizer: (res){
+          double w  = 0, h = 0;
+          final keyContext = cvKey.currentContext;
+          if (keyContext != null) {
+              // widget is visible
+            final box = keyContext.findRenderObject() as RenderBox;
+            w = box.size.width;
+            h = box.size.height;
+          }
+          instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+            (img){
+              vn.value = img;
+            }
+          );
+        }
+    );
     
+    _rqs = TaskQueue(
+      (queue)async{
+        var p = queue.back.val;
+        var img = await instance.GenSnapshot(
+          ui.HierarchicalPoint(p.offset.dx,p.offset.dy), 
+          p.height, 
+          p.size.width.ceil(), 
+          p.size.height.ceil()
+        );
+        
+        return img;
+      },
+      finalizer: (img){
+        vn.value = img;
+      }
+    );
+    
+
   }
 
   void _incrementCounter() {
@@ -261,6 +359,10 @@ half4 main(float2 p) {
     );
   }
 
+  TaskQueue<StrokePoint> _sps;
+
+  TaskQueue<CanvasReq> _rqs;
+
   void OnMove(PointerEvent e) {
 
     double w  = 0, h = 0;
@@ -276,17 +378,21 @@ half4 main(float2 p) {
     //cn.notifyListeners();
     if(e.buttons & kPrimaryMouseButton != 0){
       //Find out canvas size:
+      _sps.PostTask(StrokePoint()..offset = p.offset + e.localPosition..height = p.height);
       
-      ui.HierarchicalPoint lt = ui.HierarchicalPoint(
-        p.offset.dx + e.localPosition.dx - 25,
-        p.offset.dy + e.localPosition.dy - 25
-      );
-      ui.HierarchicalPoint rb = lt.Translated(Offset(50,50));
-      instance.DrawRect(lt, rb, p.height, 0, shader, Matrix4.identity().storage).then((_){
-        instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-          (img){vn.value = img;}
-        );
-      });
+      //if(!processingPoints){
+      //  processingPoints = true;
+      //  var f = ProcessPoints();
+      //  f.then((_){
+      //    instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+      //      (img){
+      //        vn.value = img;
+      //        processingPoints = false;
+      //      }
+      //    );
+      //  });
+      //}
+      
       //p.tree.DrawPointToTree(p.offset,Size(50,50), e.localPosition, p.height, shader);
       //cn.notifyListeners();
       //p.tree.PrepareImages()
@@ -295,8 +401,13 @@ half4 main(float2 p) {
       setState(() {
         p.offset -= e.localDelta;
         //cn.notifyListeners();
-        instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-          (img){vn.value = img;}
+        //instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+        //  (img){vn.value = img;}
+        //);
+        _rqs.PostTask(CanvasReq()
+          ..offset = p.offset
+          ..height = p.height
+          ..size = Size(w, h)
         );
       });
     }
@@ -376,6 +487,9 @@ half4 main(float2 p) {
     
     //p.shader = shaderProg.GenerateShader(uniforms);
     //canvas.drawRect(Rect.fromCenter(center:Offset.zero, width: 480, height: 480),p );
+    p.color = Colors.blue[900];
+    canvas.drawCircle(-cp.offset, 3, p);
+    //canvas.drawRect(Rect.fromLTWH(-cp.offset.dx, -cp.offset.dy, 50, 50), p);
   }
   @override
   bool shouldRepaint(TestCanvas oldDelegate) => true;

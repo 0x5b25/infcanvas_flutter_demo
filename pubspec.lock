@@ -91,14 +91,14 @@ packages:
   sky_engine:
     dependency: "direct overridden"
     description:
-      path: "D:/flutter_dev/engine/src/out/host_debug_unopt/gen/dart-pkg/sky_engine"
+      path: "D:/flutter_dev/engine/src/out/host_profile/gen/dart-pkg/sky_engine"
       relative: false
     source: path
     version: "0.0.99"
   sky_services:
     dependency: "direct overridden"
     description:
-      path: "D:/flutter_dev/engine/src/out/host_debug_unopt/gen/dart-pkg/sky_services"
+      path: "D:/flutter_dev/engine/src/out/host_profile/gen/dart-pkg/sky_services"
       relative: false
     source: path
     version: "0.0.99"
