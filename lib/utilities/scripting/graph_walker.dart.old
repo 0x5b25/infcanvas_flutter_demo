@@ -1,0 +1,208 @@
+import 'package:infcanvas/utilities/scripting/opcodes.dart';
+
+///This is the main graph compiler
+///
+
+import 'script_graph.dart';
+
+
+class ModInfo{
+  late CodeBlock block;
+  late int start;
+  late int end;
+}
+
+class JumpCB extends CodeBlock{
+  CodeBlock toWhere;
+
+  JumpCB(this.toWhere);
+
+  @override
+  List<InstLine> EmitCode(int lineCnt) {
+  }
+
+}
+
+class CompiledGraph{
+
+  List<CodeBlock> codeBlocks = [];
+  List<InstLine> instructions = [];
+  int cacheSize = 0;
+
+  CompiledGraph.compile(
+    Graph graph
+  ){
+    _Translate(graph);
+  }
+
+  String? _Translate(Graph graph) {
+    var firstTCell = graph.root.CreateTranslationCell();
+    List<GNTranslationCell> TCs = [firstTCell];
+    Map<GraphNode,GNTranslationCell> visitedNodes = {graph.root:firstTCell};
+    Map<GraphNode, CodeBlock> nodeEntryPoint = {};
+    Map<GraphNode, CacheHandle> cachedNodes = {};
+    while(TCs.isNotEmpty){
+      var tc = TCs.last;
+      var stage = tc.NextStage();
+      switch (stage) {
+        case TranslationStage.Done:
+          TCs.removeLast();
+          break;
+        case TranslationStage.NeedsEmitCode:
+          codeBlocks.add(tc.Emit());
+          break;
+        case TranslationStage.NeedsExecNode:
+          GraphNode? nextNode = tc.GiveNextNode();
+          //Arg 0 is the lowest in stack
+          if(nextNode == null){
+            //Handle return
+            bool eofHandled = false;
+            for(var n in TCs.reversed){
+              if(n.CanHandleEOF()){
+                var eof = n.HandleEOF(tc);
+                if(eof != null){
+                  codeBlocks.add(eof);
+                }
+                eofHandled = true;
+                break;
+              }
+            }
+            if(!eofHandled){
+              return "Empty return not handled!";
+            }
+            continue;
+          }
+          
+          if(!nextNode.needsExplicitExec){
+            return "Can't run implicit node";
+          }
+
+          //lets check is this node visited
+          var entry = nodeEntryPoint[nextNode];
+          if(entry != null){
+            codeBlocks.add(JumpCB(entry));
+          }else{
+            TCs.add(nextNode.CreateTranslationCell());
+          }
+          
+          break;
+        case TranslationStage.NeedsValueInput:
+          ValueDependency? nextVal = tc.GiveNextDep();
+
+          if(nextVal == null){
+            //TODO:Insert Null
+            codeBlocks.add(SimpleCB([InstLine()..op = OpCode.PUSH..i = 1]));
+          }else{
+            var n = nextVal.fromWhich;
+            var idx = nextVal.idx;
+            var entry = nodeEntryPoint[nextNode];
+          if(entry != null){
+              //There is a chance...
+              //Is this node cached?
+            var handle = cachedNodes[nextNode];
+            if(handle == null){
+
+              handle = translated.CreateOrGetResultCacheHandle();
+              cachedNodes[nextNode!] = handle;
+
+            }
+            //Yes, then insert a getter
+            codeBlocks.add(handle.NewGetter());
+
+          }else{
+            TCs.add(nextNode.CreateTranslationCell());
+          }
+
+          }
+
+          break;
+        default:
+      }
+    }
+  }
+
+  ///Compile code to instructions and allocate cache variables
+  void _Compile(){
+
+    List<ModInfo> modPending = [];
+    List<CacheHandle?> cacheReg = [];
+
+    for(var block in codeBlocks){
+      var lineCnt = instructions.length;
+
+      //Calculate cache space
+      if(block is CacheHandleGetterBlock && block.isLastGetter){
+        var from = block.fromWhichHandle;
+        //Remove all occurances
+        for(int i = 0; i < cacheReg.length; i++){
+          if(cacheReg[i] == from){
+            cacheReg[i] = null;
+          }
+        }
+      }
+      //Arrange position for cache
+      var h = block.translationCell.cacheHandle;
+      if(h != null){
+        int pos = -1;
+        for(int i = 0; i < cacheReg.length; i++){
+          if(cacheReg[i] == null){
+            //Search for space
+            bool adequte = true;
+            for(int s = 1; s < h.size; s++){
+              //We are at the end, so we can allocate
+              if(s + i >= cacheReg.length){
+                //cacheReg.add(null);
+                break;
+              }
+               
+              if(cacheReg[s+i] != null){
+                  //There is another object in range,
+                  //so we can't park here
+                  adequte = false;
+                  break;
+                }
+            }
+            if(adequte){
+              pos = i;
+              break;
+            }
+          }
+        }
+        if(pos < 0){
+          pos = cacheReg.length;
+        }
+
+        for(int s = 0; s < h.size; s++){
+          //We are at the end, so we can allocate
+          if(s + pos >= cacheReg.length)
+            cacheReg.add(h);
+          else{
+            cacheReg[s+pos] = h;
+          }
+        }
+
+        h.slot = pos;
+      }
+
+      var code = block.EmitCode(lineCnt);
+      instructions += code;
+      if(block.NeedsMod()){
+        modPending.add(ModInfo()
+          ..block = block
+          ..start = lineCnt
+          ..end = lineCnt + code.length
+        );
+      }
+    }
+
+    //Modding pass
+    for(var i in modPending){
+      var inst = instructions.sublist(i.start, i.end);
+      i.block.ModCode(inst);
+    }
+
+    //Register cache size
+    cacheSize = cacheReg.length;
+  }
+}
+

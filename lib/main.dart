@@ -15,19 +15,25 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart'
-    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:infcanvas/toolbar_widget.dart';
+import 'package:infcanvas/utilities/scripting/vm_types.dart';
+import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 
 import 'util.dart';
+import 'canvas_widget.dart';
+import 'layerman_widget.dart';
+import 'widgets/functional/floating.dart';
+import 'widgets/scripting/fgpage.dart';
+
+import 'widgets/scripting/lib_editor.dart';
 
 void main() {
-  // See https://github.com/flutter/flutter/wiki/Desktop-shells#target-platform-override
-  debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-  //instantiateImageCodec(list)
+
   runApp(new MyApp());
+
 }
 
 
@@ -38,46 +44,69 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        // See https://github.com/flutter/flutter/wiki/Desktop-shells#fonts
-        fontFamily: 'Roboto',
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: Column(
+        children: [
+          SizedBox(height: 30, child: Container(color: Colors.amber,),),
+          Expanded(
+            child: ClipRect(
+              child: EditorWrapper()
+              //CodePage(),
+            ),
+          ),
+        ],
+      ),//MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+  }
+}
+
+class EditorWrapper extends StatefulWidget {
+  @override
+  _EditorWrapperState createState() => _EditorWrapperState();
+}
+
+class _EditorWrapperState extends State<EditorWrapper> {
+
+  late ui.VMLibInfo libData;
+  late int idx;
+
+  var libs = [
+    ui.VMLibInfo("DummyLibA"),
+    ui.VMLibInfo("DummyLibB"),
+  ];
+
+  _EditorWrapperState(){
+    libData = ui.VMLibInfo("DummyLib")
+      ..AddClassInfo(ui.VMClassInfo("MyClass"))
+      ..dependencies = ["Shouldn't be here","Also shouldn't be here"]
+    ;
+    //VMEnv libMan = VMEnv();
+    //idx = libMan.LoadedLibs().length;
+    //libMan.AddLibrary(dummyLib);
+    //libData = EditorLibData(libMan, dummyLib);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      child: LibEditor(
+        libData,
+        ()=>libs,
+        //EditorClassData(libData, 0)
+      ),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({Key? key, this.title}) : super(key: key);
 
-  final String title;
+  final String? title;
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-
-class CanvasParams{
-    ui.ImageExt tree;
-    int height;
-    Offset offset;
-
-    CanvasParams(){
-      height = 0;
-      offset = Offset.zero;
-      tree = ui.ImageExt();
-    }
-}
-
-class StrokePoint{
-  Offset offset;
-  int height;
-}
-
-class CanvasReq{
-  Offset offset;
-  Size size;
-  int height;
-}
 
 
 class _MyHomePageState extends State<MyHomePage> {
@@ -88,136 +117,11 @@ class _MyHomePageState extends State<MyHomePage> {
   int _vramCachedItem = 0;
 
   
-
-  TestCanvas testPainter;
-  ChangeNotifier cn;
-  Timer pt;
-
-  ValueNotifier<ui.Image> vn;
-
-  CanvasParams p = CanvasParams();
-
-  ui.PaintShader shader;
-
-  ui.InfCanvasInstance instance;
-  GlobalKey cvKey = GlobalKey();
+  InfCanvasController cvCtrl = InfCanvasController();
+  GlobalKey fwPanelKey = GlobalKey();
   
 
-  _MyHomePageState(){
-    cn = ChangeNotifier();
-    vn = ValueNotifier(null);
-    testPainter = TestCanvas(vn,p);
-    //Keep frame profilers alive by manually refreshing
-    pt = Timer.periodic(Duration(milliseconds: 300), (timer) {setState(() {
-      
-    }); });
-    instance = ui.InfCanvasInstance();
-    ui.ShaderProgram shaderProg = ui.ShaderProgram(
-      '''
-in fragmentProcessor color_map;
-
-uniform float2 texPos;
-uniform float2 uvPos;
-uniform float uvScale;
-uniform half exp;
-uniform float3 in_colors0;
-
-float4 permute ( float4 x) { return mod ((34.0 * x + 1.0) * x , 289.0) ; }
-
-half4 alphaComposite(half4 c0, half4 c1){
-  //   * alpha composite: (color 0 over color 1)
-  //   * a01 = (1 - a0)·a1 + a0
-  //
-  //     r01 = ((1 - a0)·a1·r1 + a0·r0) / a01
-  //
-  //     g01 = ((1 - a0)·a1·g1 + a0·g0) / a01
-  //
-  //     b01 = ((1 - a0)·a1·b1 + a0·b0) / a01
-  //
-
-  //Premultiplied color:
-  //half a01 = (1 - c0.a) * c1.a + c0.a;
-  half4 c01 = c0 + c1 * (1-c0.a);
-
-  return c01;
-}
-
-half4 main(float2 p) {
-  float2 localP = p - texPos;
-
-	half4 bgColor = sample(color_map, localP);
-	
-  half4 fgColor = half4(float4(localP.x * uvScale + uvPos.x, localP.y * uvScale + uvPos.y, 0.0, 1.0)*0.5 );
-
-  return alphaComposite(fgColor, bgColor);
-  //return fgColor;
-    //return half4(0.0, 0.0, 1.0, 1.0);
-    //float s = pointSize;
-    //return half4(float4(uvPos.x, uvPos.y, 0.0, 1.0));
-}
-      '''
-    );
-
-    shader = ui.PaintShader(shaderProg);
-
-    _sps = TaskQueue(
-      (queue)async{
-        int step = 1;
-        //if(queue.length < 100) step = 1;
-        //else if(queue.length < 300) step = 2;
-        //else if(queue.length < 600) step = 3;
-        //else step = 4;
-        for(var pn = queue.front; pn != null; pn = pn.next){
-            var point = pn.val;
-            ui.HierarchicalPoint lt = ui.HierarchicalPoint(
-              point.offset.dx - 25,
-              point.offset.dy - 25
-            );
-            ui.HierarchicalPoint rb = lt.Translated(Offset(50,50));
-            await instance.DrawRect(lt, rb, point.height, 0, shader, Matrix4.identity().storage);
-            //.then((_){
-            //    instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-            //      (img){vn.value = img;}
-            //    );
-            //  });
-        }
-
-        return null;
-      },
-        finalizer: (res){
-          double w  = 0, h = 0;
-          final keyContext = cvKey.currentContext;
-          if (keyContext != null) {
-              // widget is visible
-            final box = keyContext.findRenderObject() as RenderBox;
-            w = box.size.width;
-            h = box.size.height;
-          }
-          instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-            (img){
-              vn.value = img;
-            }
-          );
-        }
-    );
-    
-    _rqs = TaskQueue(
-      (queue)async{
-        var p = queue.back.val;
-        var img = await instance.GenSnapshot(
-          ui.HierarchicalPoint(p.offset.dx,p.offset.dy), 
-          p.height, 
-          p.size.width.ceil(), 
-          p.size.height.ceil()
-        );
-        
-        return img;
-      },
-      finalizer: (img){
-        vn.value = img;
-      }
-    );
-    
+  _MyHomePageState(){    
 
   }
 
@@ -232,121 +136,107 @@ half4 main(float2 p) {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text("Hello"),
       ),
       body: SizedBox.expand(
-        child: Stack(
+        child: FloatingWindowPanel(
+          key: fwPanelKey,
           children: <Widget>[
-            Positioned.fill(
-              child: SizedBox.expand(
-                child: Listener(
-                  //onPointerDown: OnMove,
-                  onPointerMove: OnMove,
-                  onPointerUp: OnMove,
-                  child: CustomPaint(
-                    key: cvKey,
-                    painter: testPainter
-                  )
-                )
+            AnchoredPosition.fill(
+              child: InfCanvasWidget(
+                cvCtrl
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              //height: 100,
-              child: Container(
-                decoration: BoxDecoration(
-                  //color: Color.fromARGB(210, 200, 200, 210),
-                  boxShadow: [
-                    /*BoxShadow(
-                      color: Colors.black.withAlpha(90),
-                      blurRadius: 5.0, // has the effect of softening the shadow
-                      spreadRadius: 5.0, // has the effect of extending the shadow
-                      offset: Offset(
-                        0,//10.0, // horizontal, move right 10
-                        0.0, // vertical, move down 10
-                      ),
-                      
-                    )*/
-                  ]
-                ),
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(
-                      sigmaX: 30.0,
-                      sigmaY: 30.0,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.max,
+
+            FloatingWindow(
+              anchor: Rect.fromLTRB(0.5,0,0.5,0),
+              align: Offset(0.5,0),
+              top: 10,
+              width: 600,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'You have pushed the button this many times:',
+                  ),
+                  Text(
+                    '$_counter',
+                    style: Theme.of(context).textTheme.headline4,
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 30.0,
+                    child: Row(
                       children: <Widget>[
-                        Text(
-                          'You have pushed the button this many times:',
-                        ),
-                        Text(
-                          '$_counter',
-                          style: Theme.of(context).textTheme.display1,
-                        ),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 30.0,
-                          child: Row(
-                            children: <Widget>[
-                              RaisedButton(
-                                child: Text(
-                                  'Inc Height'
-                                ),
-                                onPressed: (){
-                                  setState(() {
-                                    p.height++;
-                                  });
-                                },
-                              ),
-                              RaisedButton(
-                                child: Text(
-                                  'Dec Height'
-                                ),
-                                onPressed: (){
-                                  setState(() {
-                                    p.height--;
-                                  });
-                                },
-                              ),
-                              Text(
-                                'Current Height: ${p.height}'
-                              ),
-                              Text(
-                                'Offset: ${p.offset}'
-                              ),
-                              RaisedButton(
-                                child: Text('Query VRAM'),
-                                onPressed: (){
-                                 
-                                  var totalBytes = ui.QueryGPUBudgetTotalBytes();
-                                  var cacheUsage = ui.QueryGPUBudgetCacheUsage();
-
-                                  Future.wait([totalBytes, cacheUsage]).then((value){
-                                    setState((){
-                                      _vramTotal = value[0];
-                                      var usage = value[1] as ui.GPUCacheStatus;
-                                      _vramUsed = usage.usedBytes;
-                                      _vramCachedItem = usage.cachedItemCount;
-                                    });
-                                  });
-
-                                  
-                              }),
-                              Text('Total:$_vramTotal Used:$_vramUsed Items:$_vramCachedItem')
-                            ],
+                        
+                        ElevatedButton(
+                          child: Text(
+                            '+'
                           ),
+                          onPressed: (){
+                            setState(() {
+                              cvCtrl.currentHeight++;
+                            });
+                          },
                         ),
+                        ElevatedButton(
+                          child: Text(
+                            '-'
+                          ),
+                          onPressed: (){
+                            setState(() {
+                              cvCtrl.currentHeight--;
+                            });
+                          },
+                        ),
+                        Text(
+                          'Current Height: ${cvCtrl.currentHeight}'
+                        ),
+                        ElevatedButton(
+                          child: Text('Query VRAM'),
+                          onPressed: (){
+                           
+                            var totalBytes = ui.QueryGPUBudgetTotalBytes();
+                            var cacheUsage = ui.QueryGPUBudgetCacheUsage();
+
+                            Future.wait([totalBytes, cacheUsage]).then((value){
+                              setState((){
+                                _vramTotal = value[0] as int;
+                                var usage = value[1] as ui.GPUCacheStatus;
+                                _vramUsed = usage.usedBytes;
+                                _vramCachedItem = usage.cachedItemCount;
+                              });
+                            });
+
+                            
+                        }),
+                        Text('Total:$_vramTotal Used:$_vramUsed Items:$_vramCachedItem')
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
+            
+            FloatingWindow(
+              left: 10,
+              anchor: Rect.fromLTRB(0,0.5,0,0.5),
+              align: Offset(0, 0.5),
+              //initialPosition: Offset(10,100),
+              width: 40,
+              height: 400,
+              child: Container(
+                child: Column(
+                  children: [
+                    SizedBox(width: 30, height: 30, child: Icon(Icons.check)),
+                    SizedBox(width: 30, height: 30,child: Icon(Icons.fingerprint)),
+                  ],
                 ),
               ),
-            )
+            ),
+
+            ToolBar(cvCtrl: cvCtrl,),
+            
           ],
         )
       ),
@@ -359,139 +249,5 @@ half4 main(float2 p) {
     );
   }
 
-  TaskQueue<StrokePoint> _sps;
-
-  TaskQueue<CanvasReq> _rqs;
-
-  void OnMove(PointerEvent e) {
-
-    double w  = 0, h = 0;
-    final keyContext = cvKey.currentContext;
-    if (keyContext != null) {
-        // widget is visible
-      final box = keyContext.findRenderObject() as RenderBox;
-      w = box.size.width;
-      h = box.size.height;
-    }
-
-    //_incrementCounter();
-    //cn.notifyListeners();
-    if(e.buttons & kPrimaryMouseButton != 0){
-      //Find out canvas size:
-      _sps.PostTask(StrokePoint()..offset = p.offset + e.localPosition..height = p.height);
-      
-      //if(!processingPoints){
-      //  processingPoints = true;
-      //  var f = ProcessPoints();
-      //  f.then((_){
-      //    instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-      //      (img){
-      //        vn.value = img;
-      //        processingPoints = false;
-      //      }
-      //    );
-      //  });
-      //}
-      
-      //p.tree.DrawPointToTree(p.offset,Size(50,50), e.localPosition, p.height, shader);
-      //cn.notifyListeners();
-      //p.tree.PrepareImages()
-      //  .then((e){cn.notifyListeners();});
-    }else if(e.buttons & kSecondaryMouseButton != 0){
-      setState(() {
-        p.offset -= e.localDelta;
-        //cn.notifyListeners();
-        //instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-        //  (img){vn.value = img;}
-        //);
-        _rqs.PostTask(CanvasReq()
-          ..offset = p.offset
-          ..height = p.height
-          ..size = Size(w, h)
-        );
-      });
-    }
-    
-  }
-
 }
 
-class TestCanvas extends CustomPainter{
-
-  CanvasParams cp;
-  ValueNotifier<ui.Image> vn;
-
-  ui.SkSLProgram shaderProg;
-  ByteData uniforms;
-
-  TestCanvas(ValueNotifier<ui.Image> this.vn, CanvasParams this.cp):super(repaint:vn){
-    //img = instantiateImageExt();
-    shaderProg = ui.SkSLProgram(
-      '''
-//in fragmentProcessor color_map;
-
-uniform float scale;
-uniform half exp;
-uniform float3 in_colors0;
-
-float4 permute ( float4 x) { return mod ((34.0 * x + 1.0) * x , 289.0) ; }
-
-float2 cellular2x2 ( float2 P) {
-    const float K = 1.0/7.0;
-    const float K2 = 0.5/7.0;
-    const float jitter = 0.8; // jitter 1.0 makes F1 wrong more often
-    float2 Pi = mod ( floor (P ) , 289.0) ;
-    float2 Pf = fract ( P);
-    float4 Pfx = Pf .x + float4 ( -0.5 , -1.5 , -0.5 , -1.5) ;
-    float4 Pfy = Pf .y + float4 ( -0.5 , -0.5 , -1.5 , -1.5) ;
-    float4 p = permute ( Pi .x + float4 (0.0 , 1.0 , 0.0 , 1.0) );
-    p = permute (p + Pi .y + float4 (0.0 , 0.0 , 1.0 , 1.0) );
-    float4 ox = mod (p , 7.0) *K+ K2 ;
-    float4 oy = mod ( floor (p *K) ,7.0) * K+ K2 ;
-    float4 dx = Pfx + jitter * ox ;
-    float4 dy = Pfy + jitter * oy ;
-    float4 d = dx * dx + dy * dy ; // distances squared
-    // Cheat and pick only F1 for the return value
-    d.xy = min (d.xy , d.zw ) ;
-    d.x = min (d.x , d. y);
-    return d.xx ; // F1 duplicated , F2 not computed
-}
-
-
-half4 main(float2 p) {
-	//half4 texColor = sample(color_map, p);
-	//if (length(abs(in_colors0 - pow(texColor.rgb, half3(exp)))) < scale)
-	//	discard;
-	//color = texColor;
-    float2 F = cellular2x2 ( p );
-    float n = 1.0 -1.5* F.x;
-    return half4(float4(n, n, n, 1.0));
-}
-      '''
-    );
-    uniforms = ByteData(shaderProg.UniformSizeInBytes());
-  }
-
-
-  @override
-  void paint(Canvas canvas, Size size) {
-
-    //print("Cursor pos: ${touchPoint}");
-    Paint p = Paint();
-
-    //cp.tree.DrawTreeToCanvas(canvas, size, cp.offset,cp.height);
-    if(vn.value != null){
-      canvas.drawImage(vn.value, Offset.zero, p);
-    }
-
-    
-    //p.shader = shaderProg.GenerateShader(uniforms);
-    //canvas.drawRect(Rect.fromCenter(center:Offset.zero, width: 480, height: 480),p );
-    p.color = Colors.blue[900];
-    canvas.drawCircle(-cp.offset, 3, p);
-    //canvas.drawRect(Rect.fromLTWH(-cp.offset.dx, -cp.offset.dy, 50, 50), p);
-  }
-  @override
-  bool shouldRepaint(TestCanvas oldDelegate) => true;
-
-}

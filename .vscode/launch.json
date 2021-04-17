@@ -10,25 +10,19 @@
             "request": "attach"
         },
         {
-            "name": "Flutter Profile",
+            "name": "Flutter Run",
             "request": "launch",
+            "flutterMode": "debug",
             "type": "dart",
-            "args": ["--local-engine=host_profile", "--local-engine-src-path", "D:/flutter_dev/engine/src", "--verbose", "--profile"],
-            "justMyCode":false
-        },
-        {
-            "name": "Flutter Debug",
-            "request": "launch",
-            "type": "dart",
-            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/flutter_dev/engine/src", "--verbose"],
+            "args": ["--local-engine=host_debug", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
             "justMyCode":false
         },
         {
             "name": "Flutter Attach",
             "request": "attach",
             "type": "dart",
-            "observatoryUri": "http://127.0.0.1:10000",
-            "args": ["--local-engine=host_profile", "--local-engine-src-path", "D:/flutter_dev/engine/src"]
+            "vmServiceUri": "http://127.0.0.1:57616/0fWWEa_GfdA=/",
+            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/dev/flutter/engine/src"]
         }
     ]
 }

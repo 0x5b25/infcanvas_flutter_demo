@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=2.7.0 <3.0.0"
+  sdk: ">=2.12.0 <3.0.0"
 
 dependencies:
   flutter:
@@ -27,7 +27,7 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.0
+  cupertino_icons: ^1.0.2
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +47,9 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/blackhole.jpg
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
@@ -76,6 +79,6 @@ flutter:
   # see https://flutter.dev/custom-fonts/#from-packages
 dependency_overrides:	
   sky_engine:	
-    path: D:/flutter_dev/engine/src/out/host_profile/gen/dart-pkg/sky_engine	
+    path: D:/google/dev/flutter/engine/src/out/host_debug/gen/dart-pkg/sky_engine
   sky_services:	
-    path: D:/flutter_dev/engine/src/out/host_profile/gen/dart-pkg/sky_services
+    path: D:/google/dev/flutter/engine/src/out/host_debug/gen/dart-pkg/sky_services
