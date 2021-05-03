@@ -21,14 +21,18 @@ import 'package:flutter/services.dart';
 import 'package:infcanvas/toolbar_widget.dart';
 import 'package:infcanvas/utilities/scripting/vm_types.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
+import 'package:infcanvas/widgets/scripting/brush_editor.dart';
+import 'package:infcanvas/widgets/scripting/shader_editor.dart';
+import 'package:infcanvas/widgets/scripting/shaderlib_inspector.dart';
 
 import 'util.dart';
 import 'canvas_widget.dart';
 import 'layerman_widget.dart';
 import 'widgets/functional/floating.dart';
-import 'widgets/scripting/fgpage.dart';
+import 'widgets/scripting/codepage.dart';
 
-import 'widgets/scripting/lib_editor.dart';
+import 'widgets/scripting/lib_inspector.dart';
+import 'widgets/scripting/libreg_inspector.dart';
 
 void main() {
 
@@ -45,17 +49,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: Column(
-        children: [
-          SizedBox(height: 30, child: Container(color: Colors.amber,),),
-          Expanded(
-            child: ClipRect(
-              child: EditorWrapper()
-              //CodePage(),
-            ),
-          ),
-        ],
-      ),//MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
@@ -86,15 +80,10 @@ class _EditorWrapperState extends State<EditorWrapper> {
     //libData = EditorLibData(libMan, dummyLib);
   }
 
+  LibRegistery reg = LibRegistery();
   @override
   Widget build(BuildContext context) {
-    return Material(
-      child: LibEditor(
-        libData,
-        ()=>libs,
-        //EditorClassData(libData, 0)
-      ),
-    );
+    return LibRegInspector(reg);
   }
 }
 
@@ -223,16 +212,11 @@ class _MyHomePageState extends State<MyHomePage> {
               anchor: Rect.fromLTRB(0,0.5,0,0.5),
               align: Offset(0, 0.5),
               //initialPosition: Offset(10,100),
-              width: 40,
+              //width: 40,
               height: 400,
-              child: Container(
-                child: Column(
-                  children: [
-                    SizedBox(width: 30, height: 30, child: Icon(Icons.check)),
-                    SizedBox(width: 30, height: 30,child: Icon(Icons.fingerprint)),
-                  ],
-                ),
-              ),
+              child: BrushToolbar((brush){
+                cvCtrl.brush = brush;
+              }),
             ),
 
             ToolBar(cvCtrl: cvCtrl,),
@@ -248,6 +232,114 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
-
 }
 
+class BrushToolbar extends StatefulWidget {
+
+  void Function(ui.BrushInstance? b) onSelect;
+
+  BrushToolbar(this.onSelect);
+
+  @override
+  _BrushToolbarState createState() => _BrushToolbarState();
+}
+
+class _BrushToolbarState extends State<BrushToolbar> {
+
+  List<EditorBrushData> _brushes = [];
+  EditorBrushData? selected;
+
+  Map<EditorBrushData, ui.BrushInstance> _inst = {};
+
+  Widget BuildEntry(EditorBrushData data){
+    Widget button;
+    if(data == selected){
+      button = ElevatedButton(
+        onPressed: (){ShowEditor(data);}, 
+        child: Icon(Icons.brush, size: 16,)
+      );
+    }else{
+      button = TextButton(
+        onPressed: (){SelectBrush(data);}, 
+        child: Icon(Icons.brush, size: 16,)
+      );
+    }
+
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: button,
+    );
+  }
+
+  void SelectBrush(EditorBrushData? b){
+    var inst = _inst[b];
+    if(selected != b){
+      setState(() {
+        selected = b;
+      });
+    }
+    widget.onSelect(inst);
+  }
+
+  bool UpdateInstance(EditorBrushData d){
+    var res = d.PackageBrush();
+    ui.PipelineDesc? desc = res.first;
+    String? errMsg = res.last;
+    if(desc != null){
+      var newInst = ui.BrushInstance(desc);
+      var oldInst = _inst[d];
+      if(oldInst != null){
+        oldInst.Dispose();
+      }
+      _inst[d] = newInst;
+      return true;
+    }
+    return false;
+  }
+
+  void ShowEditor(EditorBrushData d){
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (c)=>BrushEditor(d))
+    ).then((value){
+      if(UpdateInstance(d)){
+        //Brush is actually updated
+        SelectBrush(d);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(4.0),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: Column(
+                children: [
+                  for(var b in _brushes) BuildEntry(b)
+                ]
+              ),
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 30,
+          height: 30,
+          child: TextButton(
+            onPressed: (){
+              setState(() {
+                _brushes.add(EditorBrushData.createNew("Brush ${_brushes.length}"));
+              });
+            },
+            child: Icon(Icons.add)
+          ),
+        ),
+      ],
+    );
+  }
+}

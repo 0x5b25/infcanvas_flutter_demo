@@ -75,7 +75,6 @@ class LinkedListIterator<T> implements Iterator<T>{
   }
 
   @override
-  // TODO: implement current
   T get current => _currNode!.val;
 
   @override
@@ -243,5 +242,20 @@ class ClosableWindow{
     FloatingWindowPanelState.of(_ctx)?.ShowWindow(_wnd);
   }
 
+}
+
+//Enum name getter
+class EnumNameGetter<T>{
+
+  T value;
+
+  EnumNameGetter(this.value);
+
+  String get name{
+    return value.toString().split('.').last;
+  }
+
+  @override
+  String toString()=>name;
 }
 

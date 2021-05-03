@@ -45,7 +45,7 @@ class PositioningBehavior{
   ///Sizing function to constraint max size to panel size.
   static BoxConstraints Loose_Sz(LayoutParams lps){
     var childConstraints = BoxConstraints(
-      maxWidth: lps.widgetSize.isFinite? lps.widgetSize.width:lps.stackSize.width, 
+      maxWidth: lps.widgetSize.width.isFinite? lps.widgetSize.width:lps.stackSize.width, 
       maxHeight: lps.widgetSize.height.isFinite?lps.widgetSize.height:lps.stackSize.height
     );
     return childConstraints;

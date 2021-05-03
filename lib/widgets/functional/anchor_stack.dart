@@ -19,18 +19,19 @@ typedef BoxConstraints SizingFn(LayoutParams params);
 typedef void PaintFn(AnchorStackRO thisRO, PaintingContext context, Offset offset);
 
 class GeometryTrackHandle{
+
   Size size = Size.zero;
 
   Offset? Function(RenderBox?)? _req;
+  Size Function()? _reqSize;
   Rect? RequestGeometry({RenderBox? relativeTo}) { 
     var pos = _req?.call(relativeTo);
     if(pos == null) return null;
     return pos & size;
   }
 
-  Offset? RequestPosition({RenderBox? relativeTo}) { 
-    var pos = _req?.call(relativeTo);
-    return pos;
+  Offset? RequestPosition({RenderBox? relativeTo}) {
+    return _req?.call(relativeTo);
   }
 
 }
@@ -72,6 +73,8 @@ class GeometryTrackerRO extends RenderProxyBox{
   }
 
   void _SwapHandle(GeometryTrackHandle newHandle){
+    newHandle.size = _h.size;
+
     _h._req = null;
     _h = newHandle;
     _RegHandle();

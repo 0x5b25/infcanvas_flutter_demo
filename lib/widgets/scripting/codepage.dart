@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:infcanvas/utilities/scripting/graph_compiler.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
-import 'package:infcanvas/widgets/scripting/method_inspector.dart';
+import 'package:infcanvas/widgets/scripting/method_editor.dart';
 
 import '../functional/floating.dart';
 
@@ -17,6 +17,10 @@ Map<String, Color> _typeColors = {
   "":Colors.yellow,
   "Num|Int":Colors.green[400]!,
   "Num|Float":Colors.orange,
+  "float":Colors.orange,
+  "float2":Colors.deepOrange,
+  "float3":Colors.pinkAccent,
+  "float4":Colors.deepPurple,
 };
 
 Color GetColorForType(String type){
@@ -71,15 +75,25 @@ class NodeStatus{
 abstract class CodeData{
 
 
-  List<NodeHolder> GetNodes();
+  Iterable<NodeHolder> GetNodes();
   void RemoveNode(NodeHolder n);
   void AddNode(NodeHolder n);
 
 
+  ///The code change all comes from handle dragging
+  void NotifyCodeChange();
+
   Iterable<NodeSearchInfo> FindMatchingNode(String? argType, String? retType);
   bool IsSubTypeOf(String type, String base);
 
-  NodeStatus ValidateNode(GraphNode node);
+  Map<GraphNode, List<String>> nodeMessage = {};
+
+  List<String> GetNodeMessage(GraphNode node){
+    if(nodeMessage.isEmpty) return [];
+    var msg = nodeMessage[node];
+    if(msg == null) return [];
+    return msg;
+  }
 
   //TODO: reconstruct graph from saved datagg
 }
@@ -134,8 +148,8 @@ mixin GNPainterMixin on GraphNode
 class CodePage extends StatefulWidget {
 
   CodeData data;
-
-  CodePage(this.data);
+  void Function()? onChange;
+  CodePage(this.data, {this.onChange});
 
   @override
   _CodePageState createState() => _CodePageState();
@@ -162,7 +176,7 @@ class HandleNode extends GraphNode with GNPainterMixin{
   }
 
   @override
-  NodeTranslationUnit doCreateTC() {
+  VMNodeTranslationUnit doCreateTU() {
     assert(false);
     throw UnimplementedError();
   }
@@ -199,6 +213,8 @@ class _CodePageState extends State<CodePage> {
   void didUpdateWidget(CodePage oldWidget){
     super.didUpdateWidget(oldWidget);
 
+    if(oldWidget.data == widget.data) return;
+    //Only clear sites when the code data is different
     nsPopup = null;
     for(var h in linkHandleMaps){
       h.slot.DisconnectFromRear();
@@ -211,9 +227,6 @@ class _CodePageState extends State<CodePage> {
 
   //Check for and mark all errors
   void _sanitizeNodes(){
-    for(var n in widget.data.GetNodes()){
-      widget.data.ValidateNode(n.info);
-    }
   }
 
   void _moveNodes(DragUpdateDetails d){
@@ -254,8 +267,29 @@ class _CodePageState extends State<CodePage> {
       )
     );
 
-    for(var info in widget.data.GetNodes())
-      nodes.add(PNode(info));
+    for(var info in widget.data.GetNodes()){
+      GeometryTrackHandle hndl = GeometryTrackHandle();
+      nodes.add(PNode(info, hndl));
+      var message = widget.data.GetNodeMessage(info.info);
+      if(message.isNotEmpty){
+        nodes.add(AnchoredPosition(
+          tracking: hndl,
+          anchor: Rect.fromLTRB(0, 0, 1, 0),
+          alignX: 0.5,
+          alignY: 1,
+          bottom: -10,
+          child: Container(
+            color: Colors.red,
+            child: Column(
+              children: [
+                for(var s in message)
+                  Text(s, style: TextStyle(color: Colors.white),),
+              ],
+            ),
+          )
+        ));
+      }
+    }
     for(var h in linkHandleMaps)
       nodes.add(PHandle(h));
 
@@ -370,6 +404,8 @@ class _CodePageState extends State<CodePage> {
       hndl = HandleNode(from);
       to = hndl.slot as InSlotInfo;
     }
+    widget.data.NotifyCodeChange();
+    widget.onChange?.call();
     //codeLinks.add(link);
     linkHandleMaps.add(hndl);
     return hndl;
@@ -662,8 +698,9 @@ class PNode extends StatefulWidget {
   //DFWController ctrl;
 
   NodeHolder inf;
+  GeometryTrackHandle ghandle;
 
-  PNode(this.inf):super(key: inf.key);
+  PNode(this.inf, this.ghandle):super(key: inf.key);
 
   @override
   _PNodeState createState() => _PNodeState();
@@ -723,41 +760,44 @@ class _PNodeState extends State<PNode> {
       closable = (widget.inf.info as GNPainterMixin).closable;
     return DraggableFloatingWindow(
       ctrl: widget.inf.ctrl,
-    child: IntrinsicWidth(
-      stepWidth: 30,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children:[
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: 200
+    child: GeometryTracker(
+      handle: widget.ghandle,
+          child: IntrinsicWidth(
+        stepWidth: 30,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children:[
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: 200
+              ),
+              
+              child: FWMoveHandle(
+                child: Row(children: [
+                  Container(width: 30, height: 30, child: Icon(Icons.book)),
+                  Expanded(
+                    child: Text(widget.inf.info.displayName)
+                  ),
+                  if(closable)
+                    Container(
+                      width: 30, height: 30,
+                      child: TextButton(
+                        onPressed:(){
+                          var cps = context.findRootAncestorStateOfType<_CodePageState>();
+                          cps?.RemoveNode(widget.inf);
+                        }, 
+                        child: Icon(Icons.close)
+                      ),
+                    )
+                ],),
+              ),
             ),
-            
-            child: FWMoveHandle(
-              child: Row(children: [
-                Container(width: 30, height: 30, child: Icon(Icons.book)),
-                Expanded(
-                  child: Text(widget.inf.info.displayName)
-                ),
-                if(closable)
-                  Container(
-                    width: 30, height: 30,
-                    child: TextButton(
-                      onPressed:(){
-                        var cps = context.findRootAncestorStateOfType<_CodePageState>();
-                        cps?.RemoveNode(widget.inf);
-                      }, 
-                      child: Icon(Icons.close)
-                    ),
-                  )
-              ],),
-            ),
-          ),
-        
-          _BuildNodeContent(context),
           
-        ]
+            _BuildNodeContent(context),
+            
+          ]
+        ),
       ),
     ),);
   }

@@ -29,7 +29,7 @@ class InstLine{
 
 abstract class CodeBlock{
   int startLine = 0;
-  late NodeTranslationUnit fromWhichUnit;
+  late VMNodeTranslationUnit fromWhichUnit;
   String debugInfo = '';
   //late NodeTranslationUnit translationCell;
   
@@ -43,28 +43,32 @@ abstract class CodeBlock{
 }
 
 
-String? AddDep(slot, ctx){
+void AddDep(slot, ctx){
   var e = slot.link;
   if(e == null){
-    return "Incomplete input to setter node!";
+    ctx.ReportError("Incomplete input to setter node!");
+    return;
   }
   var rear = e.from as ValueOutSlotInfo;
   ctx.AddValueDependency(rear.node, rear.outputOrder);
 }
 
 abstract class NodeTranslationUnit{
-
   late GraphNode fromWhichNode;
+  void Translate(covariant GraphCompileContext ctx);
+}
+
+abstract class VMNodeTranslationUnit extends NodeTranslationUnit{
+
   CacheHandle? cached;
   bool get isCached => cached != null;
   
   bool CanHandleEOF() =>false;
 
-  CodeBlock? HandleEOF(NodeTranslationUnit issued){
+  CodeBlock? HandleEOF(VMNodeTranslationUnit issued){
     throw UnimplementedError("Wrong return handler!");
   }
   
-  String? Translate(GraphCompileContext ctx);
 
   int ReportStackUsage();
 
@@ -79,14 +83,14 @@ abstract class NodeTranslationUnit{
 
 }
 
-class GraphScope{
+class VMGraphScope{
 
-  GraphScope? parent;
+  VMGraphScope? parent;
 
-  Map<GraphNode,NodeTranslationUnit> visitedNodes = {};
+  Map<GraphNode,VMNodeTranslationUnit> visitedNodes = {};
 
-  NodeTranslationUnit? FindVisitedNode(GraphNode which){
-    GraphScope? scope = this;
+  VMNodeTranslationUnit? FindVisitedNode(GraphNode which){
+    VMGraphScope? scope = this;
     while(scope != null){
       var res = scope.visitedNodes[which];
       if(res != null) return res;
@@ -98,7 +102,7 @@ class GraphScope{
 }
 
 class EntryCB extends CodeBlock{
-  NodeTranslationUnit toWhich;
+  VMNodeTranslationUnit toWhich;
 
   EntryCB(this.toWhich);
 
@@ -118,7 +122,6 @@ class JumpCB extends CodeBlock{
   @override
   Iterable<InstLine> EmitCode(int lineCnt) sync*{
     int target = to.startLine - startLine;
-    //TODO: Unconditionally jump!
     yield InstLine(OpCode.JMPI, i:target);
   }
 
@@ -164,7 +167,7 @@ class RetGetterCB extends CodeBlock{
 ///The explicit node must haneld its outputs
 ///Either save to local slot, or dump
 class CacheHandle{
-  late NodeTranslationUnit unitToCache;
+  late VMNodeTranslationUnit unitToCache;
   late List<CacheHandleGetterBlock?> lastGetter;
   late int slot;
 
@@ -204,17 +207,40 @@ class CacheHandleGetterBlock extends CodeBlock{
   String toString()=>'Get ${fromWhichHandle.unitToCache.fromWhichNode.displayName}';
 }
 
-class GraphCompileContext{
+abstract class GraphCompileContext{
+  bool get hasErr => errMsg.isNotEmpty;
 
-  GraphScope currentScope = GraphScope();
+  Map<GraphNode, List<String>> errMsg = {};
+
+  List<NodeTranslationUnit> workingList = [];
+
+  NodeTranslationUnit get currentTU => workingList.last;
+
+  void ReportError(String message){
+    var currNode = currentTU.fromWhichNode;
+    if(errMsg[currNode] == null){
+      errMsg[currNode] = [message];
+    }
+    else{
+      errMsg[currNode]!.add(message);
+    }
+  }
+}
+
+class VMGraphCompileContext extends GraphCompileContext{
+
+  VMGraphScope currentScope = VMGraphScope();
   List<CodeBlock> blocks = [];
-  Map<NodeTranslationUnit, CodeBlock> entries = {}; 
-  Map<NodeTranslationUnit, CacheHandle> cached = {}; 
-  String? errMsg;
-  bool get hasErr => errMsg != null;
+  Map<VMNodeTranslationUnit, CodeBlock> entries = {}; 
+  Map<VMNodeTranslationUnit, CacheHandle> cached = {}; 
+  //String? errMsg;
+  
+  @override
+  VMNodeTranslationUnit get currentTU => 
+    super.currentTU as VMNodeTranslationUnit;
 
   void EnterScope(){
-    var s = GraphScope()..parent = currentScope;
+    var s = VMGraphScope()..parent = currentScope;
     currentScope = s;
   }
 
@@ -231,7 +257,7 @@ class GraphCompileContext{
     if(visited == null){
       //
       if(from.needsExplicitExec){
-        errMsg = "Depends on not executed non-explicit node!";
+        ReportError("Depends on not executed non-explicit node!");
         return;
       }
       //Not visited, translate node
@@ -261,7 +287,7 @@ class GraphCompileContext{
   }
 
   void AddNextExec(GraphNode? which){
-    if(hasErr) return;
+    //if(hasErr) return;
     if(which == null){
       HandleEOF();
       return;
@@ -269,7 +295,7 @@ class GraphCompileContext{
 
     assert(which.needsExplicitExec);
     if(!which.needsExplicitExec){
-      errMsg = "Tried to run non-explicit node!";
+      ReportError("Tried to run non-explicit node!");
       return;
     }
 
@@ -284,8 +310,8 @@ class GraphCompileContext{
 
   void HandleEOF(){
     var issuedFrom = currentTU;
-    for(int i = workingList.length - 2; i>=0;i--){
-      var tu = workingList[i];
+    for(int i = workingList.length - 1; i>=0;i--){
+      var tu = workingList[i] as VMNodeTranslationUnit;
       if(tu.CanHandleEOF()){
         var cb = tu.HandleEOF(issuedFrom);
         if(cb!=null){
@@ -296,25 +322,23 @@ class GraphCompileContext{
         return;
       }
     }
-
-    errMsg = "Return not handled!";
+    //TODO:handle silently when there is no value to return
+    ReportError("Return not handled!");
   }
 
   void EmitCode(CodeBlock block){
-    if(hasErr) return;
+    //if(hasErr) return;
     block.fromWhichUnit = currentTU;
     blocks.add(block);
   }
 
-  List<NodeTranslationUnit> workingList = [];
-
-  NodeTranslationUnit get currentTU => workingList.last;
+  
   int get retCnt => currentTU.ReportStackUsage();
 
   int TranslateNode(GraphNode root){
-    if(hasErr) return 0;
+    //if(hasErr) return 0;
     
-    var tu = root.CreateTranslationUnit();
+    var tu = root.CreateTranslationUnit() as VMNodeTranslationUnit;
     int retCnt = tu.ReportStackUsage();
     currentScope.visitedNodes[root] = tu;
 
@@ -322,7 +346,7 @@ class GraphCompileContext{
 
     AttachCodeEntry();
 
-    errMsg = tu.Translate(this);
+    tu.Translate(this);
 
     workingList.removeLast();
 
@@ -350,22 +374,30 @@ class Graph{
   late GraphNode entry;
 }
 
-class GraphCompiler{
+class VMGraphCompiler{
 
   List<InstLine> compiled = [InstLine(OpCode.HLT)];
+  Map<GraphNode, List<String>> errors = {};
   Graph graph;
-  GraphCompiler(this.graph){
+
+  bool hasError = true;
+
+
+  VMGraphCompiler(this.graph){
     Compile(graph.entry);
   }
 
   int get exchgSize => max(graph.argCnt, graph.retCnt);
 
-  String? Compile(root){
+  void Compile(root){
 
-    var ctx = GraphCompileContext();
+    var ctx = VMGraphCompileContext();
 
     ctx.TranslateNode(root);
-    if(ctx.hasErr) return ctx.errMsg;
+    if(ctx.hasErr){
+      errors = ctx.errMsg;
+      return;
+    }
 
     compiled = [];
 
@@ -373,13 +405,16 @@ class GraphCompiler{
     int localSize = ArrangeLocalSpace(ctx);
     int exchgDelta = graph.retCnt - graph.argCnt;
     if(exchgDelta < 0)exchgDelta = 0;
-    compiled.add(InstLine(OpCode.PUSH, i:localSize + exchgDelta));
+    int reserveSpace = localSize + exchgDelta;
+    if(reserveSpace > 0)
+      compiled.add(InstLine(OpCode.PUSH, i:localSize + exchgDelta));
 
     //Emit Code
     compiled += EmitCode(ctx.blocks);
+    hasError = false;
   }
 
-  int ArrangeLocalSpace(GraphCompileContext ctx){
+  int ArrangeLocalSpace(VMGraphCompileContext ctx){
     assert(!ctx.hasErr);
 
     List<CacheHandle?> cacheReg = [];
@@ -393,7 +428,7 @@ class GraphCompiler{
         if(block == h.lastGetter[block.idx]){
           //The last one, erase allocation at index
           int slot = h.slot;
-          int pos = slot + block.idx;
+          int pos = slot + block.idx - exchgSize;
           cacheReg[pos] = null;
           continue;
         }
@@ -482,5 +517,99 @@ class GraphCompiler{
 
     return insts;
   }
+
+}
+
+abstract class ShaderNodeTranslationUnit extends NodeTranslationUnit{
+
+  String get retType;
+
+  @override
+  void Translate(ShaderGraphCompileContext ctx) {
+
+  }
+
+}
+
+class ShaderRef{
+  String libName;
+  String shaderName;
+  ShaderRef(this.libName, this.shaderName);
+
+  @override
+  String toString()=>"$libName|$shaderName";
+
+  @override
+  int get hashCode => libName.hashCode ^ shaderName.hashCode;
+
+  @override
+  bool operator== (Object other){
+    if(other.runtimeType != runtimeType) return false;
+    if(other.hashCode != hashCode) return false;
+    var ref = other as ShaderRef;
+    return (
+      ref.libName == libName &&
+      ref.shaderName == shaderName
+    );
+  }
+}
+
+class ShaderGraphCompileContext extends GraphCompileContext{
+
+  ///Keeps track of assigned variable names
+  Map<GraphNode, String> _visited = {};
+  List<String> src = [];
+  List<GraphNode> srcMap = [];
+
+  List<ShaderRef> refs = [];
+
+  ///Return variable name of return value
+  String AddValueDependency(GraphNode from){
+    var name = _visited[from];
+    if(name != null) return name;
+
+    return TranslateNode(from);
+  }
+
+  String TranslateNode(GraphNode which){
+    var tu = which.CreateTranslationUnit() as ShaderNodeTranslationUnit;
+    
+    int id = _visited.length;
+    String nodeName = which.displayName;
+    String retType = tu.retType;
+
+    String valName = "NODE$id";
+    valName = valName.replaceAll(RegExp(r'((^[0-9]+)|[^\w]|(\s))+'), '_');
+    _visited[which] = valName;
+
+    workingList.add(tu);
+
+    tu.Translate(this);
+
+    workingList.removeLast();
+
+    return valName;
+  }
+
+  void EmitCode(String line){
+    srcMap.add(currentTU.fromWhichNode);
+    src.add(line);
+  }
+
+  String AssignedName(){
+    return _visited[currentTU.fromWhichNode]!;
+  }
+
+  void RefShader(String lib, String name){
+    for(var r in refs){
+      if(r.libName == lib && r.shaderName == name) return;
+    }
+
+    refs.add(ShaderRef(lib, name));
+  }
+
+}
+
+class ShaderGraphCompiler{
 
 }

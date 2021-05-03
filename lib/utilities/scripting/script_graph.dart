@@ -279,12 +279,12 @@ abstract class GraphNode{
   }
 
   NodeTranslationUnit CreateTranslationUnit(){
-    var tc = doCreateTC();
+    var tc = doCreateTU();
     tc.fromWhichNode = this;
     return tc;
   }
 
-  NodeTranslationUnit doCreateTC();
+  NodeTranslationUnit doCreateTU();
   
   GraphNode Clone();
 }
@@ -394,7 +394,7 @@ class Graph{
 class SeqOutputHanderCB extends CodeBlock{
   @override
   Iterable<InstLine> EmitCode(int lineCnt) sync*{
-    var seqUnit = fromWhichUnit as SeqTranslationUnit;
+    var seqUnit = fromWhichUnit;// as SeqTranslationUnit;
     bool isCached = seqUnit.isCached;
     int outputCnt = seqUnit.ReportStackUsage();
     if(outputCnt <= 0) return;
@@ -415,7 +415,7 @@ class SeqOutputHanderCB extends CodeBlock{
 
 }
 
-abstract class SeqTranslationUnit extends NodeTranslationUnit{
+abstract class SeqTranslationUnit extends VMNodeTranslationUnit{
   
   int get depCnt;
   int get nodeCnt;
@@ -425,13 +425,15 @@ abstract class SeqTranslationUnit extends NodeTranslationUnit{
   int ReportStackUsage() => outputCnt;
 
   @override
-  String? Translate(GraphCompileContext ctx){
+  void Translate(VMGraphCompileContext ctx){
     for(int i =0;i<depCnt;i++){
       var dep = doGetValDep(i);
       if(dep != null)
         ctx.AddValueDependency(dep.fromWhich, dep.idx);
-      else
-        return "Input not satisfied!";
+      else{
+        ctx.ReportError("Input not satisfied!");
+        return;
+      }
     }
 
     for(int i =0;i<nodeCnt;i++){
@@ -517,7 +519,7 @@ abstract class GNImplicitOp extends GNOp{
     //: super([],[], false);
   //List<DataType> input,List<DataType> output, this.needsExplicitExec
   @override
-  NodeTranslationUnit doCreateTC() {
+  VMNodeTranslationUnit doCreateTU() {
     return ImplicitTC(instructions);
   }
 

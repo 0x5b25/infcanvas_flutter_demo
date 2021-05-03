@@ -5,11 +5,18 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'util.dart';
+import 'widgets/functional/any_drag.dart';
 
 class InfCanvasController{
   _InfCanvasWidgetState? _state;
+  bool enablePan = false;
 
-  void _RegisterState(_InfCanvasWidgetState s){
+  ui.BrushInstance? brush;
+
+  Offset Function(Offset original)? pointerModifier;
+
+  void _RegisterState(_InfCanvasWidgetState? s){
+    if(_state == s) return;
     _state = s;
   }
 
@@ -48,7 +55,7 @@ class InfCanvasWidget extends StatefulWidget{
 
   @override
   State<StatefulWidget> createState() {
-    return _InfCanvasWidgetState(controller);
+    return _InfCanvasWidgetState();
   }
 
 }
@@ -59,8 +66,19 @@ class CanvasParams{
 }
 
 class StrokePoint{
-  Offset offset = Offset.zero;
-  int height = 0;
+  Offset offset;
+  int height;
+  double size;
+  ui.PaintObject stroke;
+
+  StrokePoint(
+    {
+      required this.offset,
+      this.height = 0,
+      this.size = 50,
+      required this.stroke
+    }
+  );
 }
 
 class CanvasReq{
@@ -71,7 +89,7 @@ class CanvasReq{
 
 class _InfCanvasWidgetState extends State<InfCanvasWidget>{
 
-  InfCanvasController _controller;
+  InfCanvasController get controller => widget.controller;
 
   late InfCanvasPainter cvPainter;
   GlobalKey cvKey = GlobalKey();
@@ -85,12 +103,79 @@ class _InfCanvasWidgetState extends State<InfCanvasWidget>{
   ui.InfCanvasInstance instance = ui.InfCanvasInstance();
   ui.PaintLayer? layer;
 
-  late TaskQueue<StrokePoint> _sps;
-  late TaskQueue<CanvasReq> _rqs;  
+  late TaskQueue<Future<void> Function()> _sps;
+  late TaskQueue<CanvasReq> _rqs;
 
-  _InfCanvasWidgetState(this._controller){
-    _controller._RegisterState(this);
+  late ImmediateMultiDragGestureRecognizer _drawGR = CreateDrawGR();
+  late AnyPanGestureRecognizer _panGR = CreatePanGR();
 
+  ImmediateMultiDragGestureRecognizer CreateDrawGR(){
+    return ImmediateMultiDragGestureRecognizer()
+    ..onStart = (off){
+      var brush = widget.controller.brush;
+      if(brush == null || !brush.IsValid()) return null;
+
+      var stroke = brush.NewStroke();
+      return StrokeDelegate(stroke,
+        (d,s){
+          RenderBox getBox = context.findRenderObject() as RenderBox;
+          var local = getBox.globalToLocal(d.globalPosition);
+          var pos = p.offset + local;
+          _sps.PostTask(()async{
+            var point = StrokePoint(offset:pos, height:p.height, stroke: s);
+            var size = point.size;
+            ui.HierarchicalPoint lt = ui.HierarchicalPoint(
+              point.offset.dx,// - size/2,
+              point.offset.dy,// - size/2
+            );
+            ui.HierarchicalPoint rb = lt.Translated(Offset(50,50));
+            await layer?.DrawRect(lt, size, size, point.height,
+              point.stroke, Matrix4.identity().storage);
+          });
+        },
+        (s){
+          _sps.PostTask(()async{
+            s.Dispose();
+          });
+        }
+      );
+    }
+    ;
+  }
+
+  AnyPanGestureRecognizer CreatePanGR(){
+
+    return AnyPanGestureRecognizer()
+    ..onUpdate = (d){
+      setState(() {
+        p.offset -= d.delta;
+        _UpdateSnapshot();        
+      });
+    }
+    ;
+
+  }
+
+  @override
+  void initState(){
+    super.initState();
+    controller._RegisterState(this);
+  }
+
+  @override
+  void didUpdateWidget(InfCanvasWidget oldWidget){
+    super.didUpdateWidget(oldWidget);
+    //if(oldWidget.controller == controller) return;
+    controller._RegisterState(this);
+  }
+
+  @override
+  void dispose(){
+    super.dispose();
+    controller._RegisterState(null);
+  }
+
+  _InfCanvasWidgetState(){
     cvPainter = InfCanvasPainter(vn,p);
     
     layer = instance.CreateNewPaintLayer();
@@ -144,32 +229,27 @@ half4 main(float2 p) {
     _sps = TaskQueue(
       (queue)async{
         for(var pn = queue.front; pn != null; pn = pn.next){
-            var point = pn.val;
-            ui.HierarchicalPoint lt = ui.HierarchicalPoint(
-              point.offset.dx - 25,
-              point.offset.dy - 25
-            );
-            ui.HierarchicalPoint rb = lt.Translated(Offset(50,50));
-            await layer?.DrawRect(lt, rb, point.height,shader, Matrix4.identity().storage);
+          pn.val.call();
+            
         }
 
         return null;
       },
-        finalizer: (res){
-          double w  = 0, h = 0;
-          final keyContext = cvKey.currentContext;
-          if (keyContext != null) {
-              // widget is visible
-            final box = keyContext.findRenderObject() as RenderBox;
-            w = box.size.width;
-            h = box.size.height;
-          }
-          instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
-            (img){
-              vn.value = img;
-            }
-          );
+      finalizer: (res){
+        double w  = 0, h = 0;
+        final keyContext = cvKey.currentContext;
+        if (keyContext != null) {
+            // widget is visible
+          final box = keyContext.findRenderObject() as RenderBox;
+          w = box.size.width;
+          h = box.size.height;
         }
+        instance.GenSnapshot(ui.HierarchicalPoint(p.offset.dx,p.offset.dy), p.height, w.ceil(), h.ceil()).then(
+          (img){
+            vn.value = img;
+          }
+        );
+      }
     );
     
     _rqs = TaskQueue(
@@ -191,24 +271,12 @@ half4 main(float2 p) {
   }
 
   @override
-  void didUpdateWidget(InfCanvasWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if(_controller != widget.controller){
-      _controller = widget.controller;
-      _controller._RegisterState(this);
-    }
-    
-  }
-
-
-  @override
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: NotificationListener<SizeChangedLayoutNotification>(
         onNotification: _OnResize,
         child: Listener(
-          onPointerDown: _OnMove,
-          onPointerMove: _OnMove,
+          onPointerDown: _DistributePointer,
           child: SizeChangedLayoutNotifier(
             child: CustomPaint(
               key: cvKey,
@@ -220,23 +288,14 @@ half4 main(float2 p) {
     );
   }
 
-
-  void _OnMove(PointerEvent e) {
-
-    
-    if(e.buttons & kPrimaryMouseButton != 0){
-
-      _sps.PostTask(StrokePoint()..offset = p.offset + e.localPosition..height = p.height);
-
-    }else if(e.buttons & kSecondaryMouseButton != 0){
-      setState(() {
-        p.offset -= e.localDelta;
-        _UpdateSnapshot();
-        
-      });
+  void _DistributePointer(PointerDownEvent p){
+    if(p.buttons & kPrimaryButton != 0){
+      _drawGR.addPointer(p);
+    }else{
+      _panGR.addPointer(p);
     }
-    
   }
+
 
   void _UpdateSnapshot(){
     double w  = 0, h = 0;
@@ -268,13 +327,9 @@ class InfCanvasPainter extends CustomPainter{
 
   ValueNotifier<ui.Image?> vn;
   CanvasParams p;
-
-
   InfCanvasPainter(this.vn, this.p):super(repaint:vn){
     
   }
-
-
   @override
   void paint(Canvas canvas, Size size) {
 
@@ -298,4 +353,38 @@ class InfCanvasPainter extends CustomPainter{
 
 }
 
+class StrokeDelegate extends Drag{
 
+  bool _isDisposed = false;
+  ui.PaintObject stroke;
+
+  void Function(DragUpdateDetails d, ui.PaintObject s) OnUpdate;
+  void Function(ui.PaintObject s) OnFinish;
+
+  StrokeDelegate(this.stroke, this.OnUpdate, this.OnFinish);
+
+  @override
+  void update(DragUpdateDetails details) {
+    assert(!_isDisposed);
+    assert(stroke.IsValid());
+    OnUpdate(details, stroke);
+  }
+
+  @override
+  void end(DragEndDetails details) {
+    StrokeEnd();
+  }
+
+  @override
+  void cancel() { 
+    StrokeEnd();
+  }
+
+  void StrokeEnd(){
+    if(_isDisposed) return;
+    OnFinish(stroke);
+    //stroke.Dispose();
+    //_isDisposed = true;
+  }
+
+}

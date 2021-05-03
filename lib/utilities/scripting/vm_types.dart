@@ -2,10 +2,10 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:infcanvas/utilities/scripting/graph_compiler.dart';
-import 'package:infcanvas/widgets/functional/text_input.dart';
-import 'package:infcanvas/widgets/scripting/fgpage.dart';
+import 'package:infcanvas/widgets/functional/editor_widgets.dart';
+import 'package:infcanvas/widgets/scripting/codepage.dart';
 
-import 'graphnodes.dart';
+import '../../widgets/scripting/vm_graphnodes.dart';
 import 'opcodes.dart';
 import 'script_graph.dart';
 
@@ -80,9 +80,7 @@ class FnSearchInfo{
   FnSearchInfo(this.method, this.position);
 }
 
-class VMRuntime{
 
-}
 
 class VMEnv{
 
@@ -90,6 +88,7 @@ class VMEnv{
   VMTypeInheritanceReg reg = VMTypeInheritanceReg();
 
   Map<String, VMLibInfo> _loadedLibs = {};
+  Map<String, GraphNode Function(VMMethodInfo m, VMEnv e)> methodOverrides = {};
 
   void ReloadInheritanceMap(){
     reg.Clear();
@@ -131,11 +130,8 @@ class VMEnv{
   void Reset(){
     _loadedLibs.clear();
     reg.Clear();
-    VMTest vm = VMTest();
-    for(int i = 0; i < vm.LoadedLibCnt(); i++){
-      _RegLib(vm.GetLoadedLib(i));
-    }
-    ReloadInheritanceMap();
+    
+    //ReloadInheritanceMap();
   }
 
   Iterable<VMField> Fields(String type)sync*{
@@ -231,7 +227,11 @@ class VMEnv{
         
         //Methods
         for(var fn in Methods(type.fullName).values){
-          var node = GNVMMethod(fn, IsSubTypeOf);
+          var fullName = "${fn.thisType}|${fn.name}";
+          var override = methodOverrides[fullName];
+          
+          var node = override?.call(fn, this)??
+          GNVMMethod(fn);
           
           var result = MatchGraphNode(
             node, "${fn.thisType}|Methods", IsSubTypeOf,
@@ -291,18 +291,19 @@ class VMEnv{
 }
 
 
-class GetterTC extends NodeTranslationUnit{
+class GetterTC extends VMNodeTranslationUnit{
   @override
   int ReportStackUsage() => 1;
 
   @override
-  String? Translate(GraphCompileContext ctx) {
+  void Translate(VMGraphCompileContext ctx) {
     var n = fromWhichNode as SetterNode;
 
     var _AddDep = (slot){
       var e = slot.link;
       if(e == null){
-        return "Incomplete input to getter node!";
+        ctx.ReportError("Incomplete input to getter node!");
+        return;
       }
       var rear = e.from as ValueOutSlotInfo;
       ctx.AddValueDependency(rear.node, rear.outputOrder);
@@ -318,22 +319,24 @@ class GetterTC extends NodeTranslationUnit{
 }
 
 
-class SetterTC extends NodeTranslationUnit{
+class SetterTC extends VMNodeTranslationUnit{
 
   @override
   int ReportStackUsage() => 0;
 
   @override
-  String? Translate(GraphCompileContext ctx) {
+  void Translate(VMGraphCompileContext ctx) {
     var n = fromWhichNode as SetterNode;
 
     
-
-    AddDep(n.inSlot[2], ctx);
     AddDep(n.inSlot[1], ctx);
+    if(!n.fromStatic)
+      AddDep(n.inSlot[2], ctx);
 
     ctx.EmitCode(SimpleCB([
-      InstLine(OpCode.stmem, s:n.thisType.fullName+"|"+n.fieldName)
+      if(n.fromStatic)
+        InstLine(OpCode.ldthis),
+      InstLine(OpCode.stmem, s:n.thisType.fullName+"|"+n.fieldName),
     ]));
 
     var nextExec = fromWhichNode.outSlot.first as ExecOutSlotInfo;
@@ -348,6 +351,31 @@ class SetterTC extends NodeTranslationUnit{
     throw UnimplementedError();
   }
 
+}
+
+bool CheckInputSlot(ValueInSlotInfo slot, String newType, 
+  bool Function(String ty, String base) isCompat
+){
+  var oldTy = slot.type;
+  bool compat = isCompat(oldTy, newType);
+  if(!compat) {
+    slot.Disconnect();
+  }
+  slot.type = newType;
+  return compat;
+}
+
+
+bool CheckOutputSlot(ValueOutSlotInfo slot, String newType, 
+  bool Function(String ty, String base) isCompat
+){
+  var oldTy = slot.type;
+  bool compat = isCompat(newType, oldTy);
+  if(!compat) {
+    slot.Disconnect();
+  }
+  slot.type = newType;
+  return compat;
 }
 
 abstract class EnvNode extends GraphNode{
@@ -379,18 +407,34 @@ class GetterNode extends EnvNode{
 
 
   @override
-  NodeTranslationUnit doCreateTC() {
+  VMNodeTranslationUnit doCreateTU() {
     return GetterTC();
   }
 
+  
+
   @override
   bool Validate(VMEnv env) {
-    //var ty = env.FindType(thisType.fullName);
-    if(!thisType.IsValid()) return false;
-    for(var f in env.Fields(thisType.fullName)){
-      if(f.name == fieldName) return true;
+    String thisTy = thisType.fullName;
+    if(env.FindType(thisTy) == null) return false;
+    
+    var fields = fromStatic?
+    env.StaticFields(thisTy):
+    env.Fields(thisTy);
+    for(var field in fields){
+      if(field.name == fieldName){
+        fieldType = field.type;
+        if(!fromStatic)
+          CheckInputSlot(
+            inSlot.last as ValueInSlotInfo,
+            thisTy, env.IsSubTypeOf);
+        CheckOutputSlot(
+          outSlot.last as ValueOutSlotInfo,
+          fieldType, env.IsSubTypeOf);
+        return true;
+      }
     }
-
+    RemoveLinks();
     return false;
   }
 }
@@ -423,18 +467,38 @@ class SetterNode extends EnvNode{
   }
 
   @override
-  NodeTranslationUnit doCreateTC() {
+  VMNodeTranslationUnit doCreateTU() {
     return SetterTC();
   }
 
   @override
   bool Validate(VMEnv env) {
-    //var ty = env.FindType(thisType.fullName);
-    if(!thisType.IsValid()) return false;
-    for(var f in env.Fields(thisType.fullName)){
-      if(f.name == fieldName) return true;
+    String thisTy = thisType.fullName;
+    if(env.FindType(thisTy) == null) return false;
+    
+    var fields = fromStatic?
+    env.StaticFields(thisTy):
+    env.Fields(thisTy);
+    for(var field in fields){
+      if(field.name == fieldName){
+        fieldType = field.type;
+        if(!fromStatic)
+        {
+          CheckInputSlot(
+            inSlot[1] as ValueInSlotInfo,
+            thisTy, env.IsSubTypeOf);
+          CheckInputSlot(
+            inSlot[2] as ValueInSlotInfo,
+            fieldType, env.IsSubTypeOf);
+        }else{
+          CheckInputSlot(
+            inSlot[1] as ValueInSlotInfo,
+            fieldType, env.IsSubTypeOf);
+        }
+        return true;
+      }
     }
-
+    RemoveLinks();
     return false;
   }
 
@@ -451,6 +515,8 @@ class InstNode extends GNImplicitOp implements EnvNode{
 
   @override
   bool Validate(VMEnv env){
+    //Is type included in env?
+    if(env.FindType(cls.fullName)==null)return false;
     if(!cls.IsValid() ||  !cls.IsRefType())return false;
     displayName = "New ${cls.name}";
     outSlot.last.type = cls.fullName;
@@ -463,18 +529,17 @@ class InstNode extends GNImplicitOp implements EnvNode{
   }
 
   @override
-  // TODO: implement instructions
   List<InstLine> get instructions =>[
     InstLine(OpCode.newobj, s:cls.fullName),
   ];
 }
 
-class ConstructTU extends NodeTranslationUnit{
+class ConstructTU extends VMNodeTranslationUnit{
   @override
   int ReportStackUsage() => 1;
 
   @override
-  String? Translate(GraphCompileContext ctx) {
+  void Translate(VMGraphCompileContext ctx) {
     var n = fromWhichNode as ConstructNode;
 
     ctx.EmitCode(SimpleCB([
@@ -539,6 +604,7 @@ class ConstructNode extends EnvNode{
 
   @override
   bool Validate(VMEnv env){
+    if(env.FindType(cls.fullName)==null)return false;
     if(!( cls.IsValid() && cls.IsRefType()))return false;
     var ty = env.FindType(cls.fullName);
     if(ty == null) return false;
@@ -552,7 +618,7 @@ class ConstructNode extends EnvNode{
   }
 
   @override
-  NodeTranslationUnit doCreateTC() => ConstructTU();
+  VMNodeTranslationUnit doCreateTU() => ConstructTU();
 
   @override
   bool get needsExplicitExec => false;
@@ -574,7 +640,6 @@ class NullCompareNode extends GNImplicitOp{
   }
 
   @override
-  // TODO: implement instructions
   List<InstLine> get instructions =>[
     InstLine(OpCode.isnull),
   ];
@@ -679,3 +744,5 @@ class ConstFloatNode extends GNImplicitOp with GNPainterMixin{
   ];
 
 }
+
+//TODO:Singleton builtin library loader
