@@ -2,28 +2,21 @@
 import 'package:flutter/material.dart';
 
 
-class PushButton extends StatelessWidget {
+class PushButton extends StatefulWidget {
 
-  bool state;
-  Widget child;
+  final bool? state;
+  late final Widget Function(bool state) childBuilder;
   void Function(bool) onChange;
 
   PushButton({
     Key?key,
     required this.state,
-    required this.child,
+    required this.childBuilder,
     required this.onChange,
   }):super(key: key){}
 
   @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: (){
-        onChange(!state);
-      },
-      child: child,
-    );
-  }
+  _PushButtonState createState() => _PushButtonState();
 
   PushButton.text(
     String content,
@@ -32,12 +25,43 @@ class PushButton extends StatelessWidget {
       required this.state,
       required this.onChange,
     }
-  ):child = Text(content,
-              style: state?
-              TextStyle(color: Colors.green):
-              TextStyle(color: Colors.grey),
-            )
-  { }
+  )
+  {
+    childBuilder = (bool state){
+      return Text(content,
+        style: state?
+        TextStyle(color: Colors.green):
+        TextStyle(color: Colors.grey),
+      );
+    };
+  }
+
+}
+
+class _PushButtonState extends State<PushButton> {
+
+  bool state = false;
+
+  @override void initState() {
+    super.initState();
+    state = widget.state??false;
+  }
+
+  @override void didUpdateWidget(covariant PushButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    state = widget.state??false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: (){
+        state = !state;
+        widget.onChange(state);
+      },
+      child: widget.childBuilder(state),
+    );
+  }
 }
 
 class NameField extends StatefulWidget{
@@ -116,18 +140,26 @@ abstract class ListEntryProperty{
   Widget? BuildEditMode(BuildContext ctx)=>null;
 }
 
-abstract class ListEditEntry{
-  late ListInterface iface;
+abstract class ListEditEntry<T extends ListInterface>{
+  late T fromWhichIface;
+
+  void PerformRepaint(){
+    fromWhichIface.repaint?.call();
+  }
 
   bool CanEdit();
   bool IsConfigValid();
   Iterable<ListEntryProperty> EditableProps(BuildContext ctx);
+
+  void Dispose(){}
 }
 
 abstract class ListInterface{
+  void Function()? repaint;
+
   Iterable<ListEditEntry> GetEntry()sync*{
     for(var entry in doGetEntry()){
-      entry.iface = this;
+      entry.fromWhichIface = this;
       yield entry;
     }
   }
@@ -141,10 +173,12 @@ abstract class ListInterface{
 
   ListEditEntry GiveEntryTemplate(){
     var entry = doCreateEntryTemplate();
-    entry.iface = this;
+    entry.fromWhichIface = this;
     return entry;
   }
   ListEditEntry doCreateEntryTemplate();
+
+  void Dispose(){}
 }
 
 
@@ -178,8 +212,14 @@ class _NewEntryButtonState extends State<_NewEntryButton> {
 
 
   void _RequestNewEntry(){
+    newEntry?.Dispose();
     newEntry = widget.template();
     configHasError = !newEntry!.IsConfigValid();
+  }
+
+  @override void dispose() {
+    super.dispose();
+    newEntry?.Dispose();
   }
 
   @override
@@ -240,6 +280,7 @@ class _NewEntryButtonState extends State<_NewEntryButton> {
   void Reset(){
     setState(() {
       stats = {};
+      newEntry?.Dispose();
       newEntry = null;
     });
   }
@@ -282,17 +323,38 @@ class _ListEditorState extends State<ListEditor> {
   bool _inEditMode = false;
   int _sel = -1;
 
+  @override void initState() {
+    super.initState();
+    _SetupIface();
+  }
+
   @override
   void didUpdateWidget(ListEditor oldWidget){
     super.didUpdateWidget(oldWidget);
-    if(oldWidget.listToEdit != widget.listToEdit)
-      widget.listToEdit.Init(context);
+    if(oldWidget.listToEdit == widget.listToEdit) return;
+    oldWidget.listToEdit.Dispose();
+    _SetupIface();
   }
 
   @override
   void didChangeDependencies(){
     super.didChangeDependencies();
+    _SetupIface();
+  }
+
+  @override dispose(){
+    super.dispose();
+    widget.listToEdit.Dispose();
+  }
+
+  _SetupIface(){
     widget.listToEdit.Init(context);
+    widget.listToEdit.repaint = (){
+      if(!mounted) return;
+      setState(() {
+
+      });
+    };
   }
 
   @override
@@ -352,6 +414,7 @@ class _ListEditorState extends State<ListEditor> {
   Iterable<Widget> _BuildEntry()sync*{
     int i = 0;
     for(var entry in widget.listToEdit.GetEntry()){
+
       i++;
       if(!_inEditMode) {
         yield _BuildNormalEntry(entry,i);
@@ -664,7 +727,6 @@ class BoolProp extends ListEntryProperty{
       ),
     );
   }
-
 }
 
 class PropBuilder extends ListEntryProperty{

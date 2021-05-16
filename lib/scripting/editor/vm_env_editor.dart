@@ -3,70 +3,14 @@ import 'dart:ui';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 
-import 'package:infcanvas/utilities/scripting/vm_types.dart';
-import 'package:infcanvas/widgets/functional/editor_widgets.dart';
-import 'package:infcanvas/widgets/scripting/lib_inspector.dart';
-
-import 'vm_editor_data.dart';
+import 'package:infcanvas/scripting/editor/vm_types.dart';
+import 'package:infcanvas/scripting/editor_widgets.dart';
+import 'package:infcanvas/scripting/editor/codemodel.dart';
+import 'package:infcanvas/scripting/editor/vm_editor.dart';
 
 ///Manages all loaded libraries
 ///Provide lib registery and compiling services
 ///Lib creation templates
-
-///Manages loaded libraries
-class LibRegistery{
-  List<VMLibInfo> _builtinLibs = [];
-  List<EditorLibData> _editableLibs = [];
-
-  List<EditorLibData> get editableLibs => _editableLibs;
-
-  LibRegistery(){
-    
-    //VMTest vm = VMTest();
-    //for(int i = 0; i < vm.LoadedLibCnt(); i++){
-    //  _builtinLibs.add((vm.GetLoadedLib(i)));
-    //}
-    _builtinLibs = VMRTLibs.RuntimeLibs;
-  }
-
-  EditorLibData NewEditableLib(VMLibInfo lib){
-    VMEnv libEnv = VMEnv();
-    libEnv.AddLibs(_builtinLibs + [lib]);
-    lib.dependencies = [
-      for(var l in _builtinLibs)
-        l.name,
-    ];
-    EditorLibData data = EditorLibData(libEnv, lib);
-    _editableLibs.add(data);
-    return data;
-  }
-
-  void RemoveEditableLib(VMLibInfo lib){
-    var name = lib.name;
-    _editableLibs.removeWhere((element){
-      return element.lib.IsSame(lib);
-    });
-
-    var avail = LoadedLibs();
-    for(var l in _editableLibs){
-      if(l.env.FindLib(name) == null) continue;
-      l.ReconstructEnv(avail);
-    }
-
-  }
-
-
-  Iterable<VMLibInfo> LoadedLibs()sync*{
-    for(var l in _builtinLibs){
-      yield l;
-    }
-
-    for(var l in _editableLibs){
-      yield l.lib;
-    }
-  }
-
-}
 
 class NewLibDialog extends StatefulWidget {
 
@@ -143,16 +87,24 @@ class _NewLibDialogState extends State<NewLibDialog> {
   }
 }
 
-class LibRegInspector extends StatefulWidget {
-  final LibRegistery reg;
+class VMEnvExplorer extends StatefulWidget {
+  final VMEditorEnv env;
+  final void Function(CodeLibrary lib)? onSelect;
 
-  const LibRegInspector(this.reg);
+  const VMEnvExplorer(
+    this.env,
+    {
+      Key? key,
+      this.onSelect,
+    }
+  ):super(key: key);
 
   @override
-  _LibRegInspectorState createState() => _LibRegInspectorState();
+  _VMEnvExplorerState createState() => _VMEnvExplorerState();
+
 }
 
-class _LibRegInspectorState extends State<LibRegInspector> {
+class _VMEnvExplorerState extends State<VMEnvExplorer> {
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -180,15 +132,10 @@ class _LibRegInspectorState extends State<LibRegInspector> {
               children: [
                 Expanded(child: Card(
                   child: ListEditor(
-                    listToEdit: LibRegInterface(widget.reg),
+                    listToEdit: EditorEnvInterface(widget.env),
                     onSelect: (l){
-                      if(l is EditableLibRegEntry){
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) =>LibInspector(l.data, widget.reg.LoadedLibs)
-                          ),
-                        );
-                      }
+                      var e = l as EnvLibEntry;
+                      widget.onSelect?.call(l.lib);
                     },
                   ),
                 )),
@@ -242,17 +189,14 @@ class _LibRegInspectorState extends State<LibRegInspector> {
 
   bool ValidateName(String name){
     if(name == "")return false;
-    for(var lib in widget.reg.LoadedLibs()){
+    for(var lib in widget.env.LoadedLibs()){
       if(lib.name == name) return false;
     }
 
     return true;
   }
 
-  void NewEditableLib(String name){
-    VMLibInfo inf = VMLibInfo(name);
-    widget.reg.NewEditableLib(inf);
-  }
+
 
   void ShowNewReusableDialog(){
     showDialog(
@@ -265,8 +209,8 @@ class _LibRegInspectorState extends State<LibRegInspector> {
       );},
     ).then<String?>((name){
       if(name != null){
-        VMLibInfo lib = VMLibInfo(name);
-        widget.reg.NewEditableLib(lib);
+        var lib = CodeLibrary()..name.value = name;
+        widget.env.LoadLib(lib);
         setState(() {});
       }
     });
@@ -284,8 +228,8 @@ class _LibRegInspectorState extends State<LibRegInspector> {
       );},
     ).then<String?>((name){
       if(name != null){
-        VMLibInfo lib = VMLibInfo(name);
-        widget.reg.NewEditableLib(lib);
+        var lib = CodeLibrary()..name.value = name;
+        widget.env.LoadLib(lib);
         setState(() {});
       }
     });
@@ -328,100 +272,92 @@ class IconButton extends StatelessWidget {
   }
 }
 
-class LibRegInterface extends ListInterface{
+class EditorEnvInterface extends ListInterface{
 
-  LibRegistery reg;
+  VMEditorEnv env;
 
-  LibRegInterface(this.reg);
-
-  @override
-  bool get canAdd =>false;
+  EditorEnvInterface(this.env);
 
   @override
-  void AddEntry(TemplateLibRegEntry entry) {
-    reg.NewEditableLib(entry.lib);
+  void AddEntry(EnvLibEntry entry) {
+    env.LoadLib(entry.lib);
   }
 
   @override
-  void RemoveEntry(EditableLibRegEntry index) {
-    reg.RemoveEditableLib(index.lib);
+  void RemoveEntry(EnvLibEntry entry) {
+    env.UnloadLib(entry.lib);
   }
 
-  @override
-  TemplateLibRegEntry doCreateEntryTemplate() {
-    return TemplateLibRegEntry();
+  @override doCreateEntryTemplate() {
+    return EnvLibEntry._();
   }
 
-  @override
-  Iterable<LibRegEntryBase> doGetEntry()sync* {
-    for(var l in reg._builtinLibs){
-      yield LockedLibRegEntry(l);
-    }
-
-    for(var l in reg._editableLibs){
-      yield EditableLibRegEntry(l);
+  @override doGetEntry()sync* {
+    for(var l in env.LoadedLibs()){
+      yield EnvLibEntry(l);
     }
   }
 }
 
-abstract class LibRegEntryBase extends ListEditEntry{
+class EnvLibEntry extends ListEditEntry<EditorEnvInterface>{
 
-  LibRegInterface get interface => iface as LibRegInterface;
-  VMLibInfo get lib;
+  CodeLibrary lib;
+  VMEditorEnv get env => fromWhichIface.env;
 
-  LibRegEntryBase();
+  EnvLibEntry(this.lib);
+  EnvLibEntry._():lib = CodeLibrary();
+
+  @override CanEdit()=>lib.editable;
 
   bool ValidateName(String name){
     if(name == "")return false;
-    for(var lib in interface.reg.LoadedLibs()){
-      if(lib.IsSame(lib)) continue;
+    for(var lib in env.LoadedLibs()){
+      if(lib == this.lib) continue;
       if(lib.name == name) return false;
     }
-
     return true;
   }
 
-  bool SetLibName(String newName);
-
-  @override
-  bool IsConfigValid() => ValidateName(lib.name);
-
-}
-
-class EditableLibRegEntry extends LibRegEntryBase{
-  
-  EditorLibData data;
-
-  EditableLibRegEntry(this.data);
-
-  @override
-  VMLibInfo get lib => data.lib;
-  
-  @override
-  bool CanEdit()=>true;
-
-  @override
   bool SetLibName(String newName){
     if(!ValidateName(newName)) return false;
-
-    data.Rename(newName); 
-
+    lib.name.value = newName;
     return true;
   }
 
   @override
-  Iterable<ListEntryProperty> EditableProps(ctx) {
-    return[
-      if(!data.IsValid())
-        StatusIndicator(EntryStatus.Error),
+  bool IsConfigValid() => ValidateName(lib.name.value);
 
-      StringProp(
-        SetLibName,
-        hint: "Library Name",
-        initialContent: lib.name,
-      ),
+  bool HasError(){
+    for(var ty in lib.types){
+      for(var m in ty.methods){
+        if(m is! CodeMethod) continue;
+        if(m.nodeMessage.isNotEmpty) return true;
+      }
+    }
+
+    return false;
+  }
+
+  @override
+  Iterable<ListEntryProperty> EditableProps(BuildContext ctx) {
+    if(CanEdit())
+      return[
+        if(HasError())
+          StatusIndicator(EntryStatus.Error),
+
+        StringProp(
+          SetLibName,
+          hint: "Library Name",
+          initialContent: lib.name.value,
+        ),
+      ];
+
+    return[
+      LockName(lib.name.value),
+      LockIndicator(),
     ];
   }
+
 }
 
 class LockIndicator extends ListEntryProperty{
@@ -448,60 +384,4 @@ class LockName extends ListEntryProperty{
       ),
     );
   }
-}
-
-class LockedLibRegEntry extends LibRegEntryBase{
-
-  VMLibInfo lib;
-  LockedLibRegEntry(this.lib);
-
-  @override
-  bool CanEdit()=>false;
-
-  @override
-  Iterable<ListEntryProperty> EditableProps(ctx) {
-    return[
-      LockName(lib.name),
-      LockIndicator(),
-    ];
-  }
-
-  @override
-  bool SetLibName(String newName) {
-    throw UnimplementedError();
-  }
-}
-
-
-class TemplateLibRegEntry extends LibRegEntryBase{
-
-  String targetName = "";
-  VMLibInfo lib = VMLibInfo("");
-  TemplateLibRegEntry();
-
-  @override
-  bool CanEdit()=>true;
-
-
-  @override
-  Iterable<ListEntryProperty> EditableProps(ctx) {
-    return[
-      StringProp(
-        SetLibName,
-        hint: "Library Name",
-        initialContent: lib.name,
-      ),
-    ];
-  }
-
-  @override
-  bool SetLibName(String newName){
-    targetName = newName;
-    if(!ValidateName(newName)) return false;
-    lib.name = newName;
-    return true;
-  }
-
-  @override
-  bool IsConfigValid() => ValidateName(targetName);
 }

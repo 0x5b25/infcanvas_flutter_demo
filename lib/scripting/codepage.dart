@@ -4,58 +4,25 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:infcanvas/utilities/scripting/graph_compiler.dart';
+import 'package:infcanvas/scripting/graph_compiler.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
-import 'package:infcanvas/widgets/scripting/method_editor.dart';
 
-import '../functional/floating.dart';
+import '../widgets/functional/floating.dart';
+import 'script_graph.dart';
 
-import '../../utilities/scripting/graphnodes.dart';
-import '../../utilities/scripting/script_graph.dart';
+ISlotPainter? _getIPainter(slot) => slot is ISlotPainter?slot : null;
 
-Map<String, Color> _typeColors = {
-  "":Colors.yellow,
-  "Num|Int":Colors.green[400]!,
-  "Num|Float":Colors.orange,
-  "float":Colors.orange,
-  "float2":Colors.deepOrange,
-  "float3":Colors.pinkAccent,
-  "float4":Colors.deepPurple,
-};
-
-Color GetColorForType(String type){
-  var color = _typeColors[type];
-  return color??Colors.cyan;
-}
-
-Map<Type, IconData> _slotLinkedIcon = {
-
-  ValueInSlotInfo: Icons.radio_button_on,
-  ValueOutSlotInfo:Icons.radio_button_on,
-  ExecInSlotInfo:  Icons.label,
-  ExecOutSlotInfo: Icons.label,
-
-};
+IconData _getIconConnected(slot) => _getIPainter(slot)?.iconConnected??
+    Icons.radio_button_on;
+IconData _getIconDisconnected(slot) => _getIPainter(slot)?.iconDisconnected??
+    Icons.radio_button_off;
+Color GetColorForSlot(SlotInfo slot) => _getIPainter(slot)?.iconColor??
+    Colors.grey;
+IconData GetIconForSlot(SlotInfo slot)
+  =>slot.IsLinked()?
+  _getIconConnected(slot):_getIconDisconnected(slot);
 
 
-Map<Type, IconData> _slotEmptyIcon = {
-  ValueInSlotInfo: Icons.radio_button_off,
-  ValueOutSlotInfo:Icons.radio_button_off,
-  ExecInSlotInfo:  Icons.label_outline,
-  ExecOutSlotInfo: Icons.label_outline,
-};
-
-IconData GetIconForSlot(SlotInfo slot){
-  var lut = _slotEmptyIcon;
-  if(slot.IsLinked())
-    lut = _slotLinkedIcon;
-  var ico = lut[slot.runtimeType];
-  return ico??Icons.adb;
-}
-
-Color GetColorForSlot(SlotInfo slot){
-  return GetColorForType(slot.type);
-}
 
 class NodeStatus{
   int stat = 0;
@@ -72,30 +39,46 @@ class NodeStatus{
 
 }
 
-abstract class CodeData{
+
+class GraphNodeQueryResult{
+  final GraphNode node;
+  final String category;
+  final bool isInput;
+  final int slotIdx;
+  const GraphNodeQueryResult(
+      this.node,
+      this.category,
+      [this.isInput = true,
+      this.slotIdx = -1])
+  ;
+}
 
 
-  Iterable<NodeHolder> GetNodes();
-  void RemoveNode(NodeHolder n);
-  void AddNode(NodeHolder n);
+abstract class ICodeData{
+
+
+  Iterable<DrawableNodeMixin> GetNodes();
+  void RemoveNode(covariant DrawableNodeMixin n);
+  void AddNode(covariant DrawableNodeMixin n);
 
 
   ///The code change all comes from handle dragging
-  void NotifyCodeChange();
+  void OnCodeChange();
 
-  Iterable<NodeSearchInfo> FindMatchingNode(String? argType, String? retType);
-  bool IsSubTypeOf(String type, String base);
+  Iterable<GraphNodeQueryResult> FindNodeWithConnectableSlot(SlotInfo? slot);
+  //bool IsSubTypeOf(String type, String base);
 
-  Map<GraphNode, List<String>> nodeMessage = {};
+  //Map<GraphNode, List<String>> nodeMessage = {};
 
-  List<String> GetNodeMessage(GraphNode node){
-    if(nodeMessage.isEmpty) return [];
-    var msg = nodeMessage[node];
-    if(msg == null) return [];
-    return msg;
-  }
+  List<String> GetNodeMessage(GraphNode node);
+  //{
+  //  if(nodeMessage.isEmpty) return [];
+  //  var msg = nodeMessage[node];
+  //  if(msg == null) return [];
+  //  return msg;
+  //}
 
-  //TODO: reconstruct graph from saved datagg
+  //TODO: reconstruct graph from saved data
 }
 
 mixin GNPainterMixin on GraphNode
@@ -147,48 +130,97 @@ mixin GNPainterMixin on GraphNode
 
 class CodePage extends StatefulWidget {
 
-  CodeData data;
+  ICodeData data;
   void Function()? onChange;
   CodePage(this.data, {this.onChange});
 
   @override
   _CodePageState createState() => _CodePageState();
 }
+//
+// class NodeHolder{
+//   GraphNode info;
+//   Key key = GlobalKey();
+//   DFWController ctrl = DFWController()
+//     ..dx = 50
+//     ..dy = 50
+//     ..layoutBehavior=null
+//     ;
+//   NodeHolder(this.info);
+// }
 
-class NodeHolder{
-  GraphNode info;
+mixin DrawableNodeMixin on GraphNode{
   Key key = GlobalKey();
   DFWController ctrl = DFWController()
     ..dx = 50
     ..dy = 50
     ..layoutBehavior=null
-    ;
-  NodeHolder(this.info);
+  ;
+
+  bool get closable => true;
+
+  Widget DrawInput(){
+    return IntrinsicWidth(
+      child: Column(
+        children: [
+          for(var i in inSlot)
+            InputSlot(info: i)
+        ],
+      ),
+    );
+  }
+
+  Widget DrawOutput(){
+    return IntrinsicWidth(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for(var o in outSlot)
+            OutputSlot(info: o)
+        ],
+      ),
+    );
+  }
+
+  void Function()? _repaintCallback;
+  Widget Draw(BuildContext context, void Function() update){
+    _repaintCallback = update;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DrawInput(),
+        Expanded(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: 30,
+            ),
+            child: Container(),
+          ),
+        ),
+        DrawOutput(),
+      ],
+    );
+  }
+
+  void NotifyRepaint(){
+    _repaintCallback?.call();
+  }
 }
 
 class HandleNode extends GraphNode with GNPainterMixin{
   DFWController ctrl = DFWController();
-  late SlotInfo slot;
-  late bool isInput;
-  HandleNode(SlotInfo rear){
-    slot = rear.GenerateLink(this, "temp");
-    isInput = slot is InSlotInfo;
-  }
+  SlotInfo slot;
+  SlotInfo rear;
+  HandleNode(this.rear, this.slot){}
 
-  @override
-  VMNodeTranslationUnit doCreateTU() {
-    assert(false);
-    throw UnimplementedError();
-  }
+  @override doCreateTU() => throw UnimplementedError();
+  @override Clone() => throw UnimplementedError();
+  @override get needsExplicitExec => throw UnimplementedError();
 
-  @override
-  GraphNode Clone() {
-    throw UnimplementedError();
-  }
-
-  @override
-  // The property shouldn't be read for handles
-  bool get needsExplicitExec => throw UnimplementedError();
+  @override get displayName => "Drag Handle";
+  @override get inSlot => [];
+  @override get outSlot => [];
 }
 
 class _CodePageState extends State<CodePage> {
@@ -217,7 +249,7 @@ class _CodePageState extends State<CodePage> {
     //Only clear sites when the code data is different
     nsPopup = null;
     for(var h in linkHandleMaps){
-      h.slot.DisconnectFromRear();
+      h.slot?.Disconnect();
     }
     linkHandleMaps.clear();
 
@@ -260,17 +292,17 @@ class _CodePageState extends State<CodePage> {
                 ..dx = d.localPosition.dx
                 ..dy = d.localPosition.dy
                 ,
-              null);
+              null,null);
           },
           onPanUpdate: (d){_moveNodes(d);},
         )
       )
     );
 
-    for(var info in widget.data.GetNodes()){
+    for(var node in widget.data.GetNodes()){
       GeometryTrackHandle hndl = GeometryTrackHandle();
-      nodes.add(PNode(info, hndl));
-      var message = widget.data.GetNodeMessage(info.info);
+      nodes.add(PNode(node, hndl));
+      var message = widget.data.GetNodeMessage(node);
       if(message.isNotEmpty){
         nodes.add(AnchoredPosition(
           tracking: hndl,
@@ -323,11 +355,12 @@ class _CodePageState extends State<CodePage> {
     }
     //only track inputs
     for(var n in s.widget.data.GetNodes()){
-      _DrawNodeLinks(n.info, ro, origin, ctx);
+      _DrawNodeLinks(n, ro, origin, ctx);
     }
     for(var h in s.linkHandleMaps){
-      if(h.isInput)
-        _DrawInputSlot(h.slot as InSlotInfo, ro, origin, ctx);
+      var slot = h.slot;
+      if(slot is InSlotInfo)
+        _DrawInputSlot(slot, ro, origin, ctx);
     }
 
     if(s.nsPopup != null){
@@ -350,10 +383,9 @@ class _CodePageState extends State<CodePage> {
         for(var l in (i as MultiConnSlotMixin).links)
           _DrawLinkLine(l, ro, origin, ctx);
       }
-      else{
+      else if(i is SingleConnSlotMixin){
         var l = (i as SingleConnSlotMixin).link!;
         _DrawLinkLine(l, ro, origin, ctx);
-
       }
   }
 
@@ -394,17 +426,19 @@ class _CodePageState extends State<CodePage> {
     //ctx.canvas.drawLine(lStart, lEnd, Paint());
   }
 
-  HandleNode DoAddLink(OutSlotInfo? from, InSlotInfo? to){
+  HandleNode? DoCreateDragHandle(OutSlotInfo? from, InSlotInfo? to){
     assert((from != null) != (to!=null));
     HandleNode? hndl;
     if(from == null){
-      hndl = HandleNode(to!);
-      from = hndl.slot as OutSlotInfo;
+      var slot = to!.CreateCounterpart();
+      if(slot == null) return null;
+      hndl = HandleNode(to!, slot);
     }else{
-      hndl = HandleNode(from);
-      to = hndl.slot as InSlotInfo;
+      var slot = from!.CreateCounterpart();
+      if(slot == null) return null;
+      hndl = HandleNode(from!, slot);
     }
-    widget.data.NotifyCodeChange();
+    widget.data.OnCodeChange();
     widget.onChange?.call();
     //codeLinks.add(link);
     linkHandleMaps.add(hndl);
@@ -430,18 +464,20 @@ class _CodePageState extends State<CodePage> {
       }
     }
   }
+
   Offset htPos = Offset.zero;
   List<Rect> htRes = [];
-  void ConvertHandleNode(HandleNode nif) {
+
+  void ConvertHandleNode(HandleNode hndl) {
     assert(mounted);
     //Do a search
-    bool contains = linkHandleMaps.remove(nif);
+    bool contains = linkHandleMaps.remove(hndl);
     if(!contains) return;
     //Must have either input or output
     //assert(nif.slot != null);
 
     //Find drop postion
-    var localPos = Offset(nif.ctrl.dx??0, nif.ctrl.dy??0);
+    var localPos = Offset(hndl.ctrl.dx??0, hndl.ctrl.dy??0);
     var ro = context.findRenderObject() as RenderBox;
     var globalPos = ro.localToGlobal(localPos);
     final HitTestResult result = HitTestResult();
@@ -459,14 +495,36 @@ class _CodePageState extends State<CodePage> {
       }
     }
 
-    if(nif.isInput){
+    var it = _getDragTargets<_SlotBaseState>(result.path);
+    if(it.isNotEmpty){
+      var slot = it.first.widget.info;
+      bool compat = slot.CanEstablishLink(hndl.rear);
+      //Output type must be input type's sub class
+      //if(slot is OutSlotInfo){
+      //  compat = lib.reg.IsSubTypeOf(slot.type, nif.slot.type);
+      //}else{
+      //  compat = lib.reg.IsSubTypeOf(nif.slot.type, slot.type);
+      //}
+      if(compat){
+        setState(() {
+          slot.ConcatSlot(hndl.slot);
+          widget.data.OnCodeChange();
+        });
+        return;
+      }
+    }
+
+    ShowNodeSelPopup(hndl.ctrl, hndl.slot, hndl.rear);
+
+    /*
+    if(hndl.isInput){
       //This is a "To" handle
       //Available drop points are "input slots"
       var it = _getDragTargets<_InputSlotState>(result.path);
       if(it.isNotEmpty){
         var slot = it.first.widget.info;
-        if(slot.runtimeType == nif.slot.runtimeType){
-          bool compat = widget.data.IsSubTypeOf(nif.slot.type, slot.type);
+        if(slot.runtimeType == hndl.slot.runtimeType){
+          bool compat = widget.data.IsSubTypeOf(hndl.slot.type, slot.type);
           //Output type must be input type's sub class
           //if(slot is OutSlotInfo){
           //  compat = lib.reg.IsSubTypeOf(slot.type, nif.slot.type);
@@ -475,22 +533,22 @@ class _CodePageState extends State<CodePage> {
           //}
           if(compat){
             setState(() {
-              slot.ConcatSlot(nif.slot); 
+              slot.ConcatSlot(hndl.slot);
             });
             return;
           }
         }
       }
 
-      ShowNodeSelPopup(nif.ctrl, nif.slot);
+      ShowNodeSelPopup(hndl.ctrl, hndl.slot);
     }else{
       //"From" handle
       //Available drop points are "output slots"
       var it = _getDragTargets<_OutputSlotState>(result.path);
       if(it.isNotEmpty){
         var slot = it.first.widget.info;
-        if(slot.runtimeType == nif.slot.runtimeType){
-          bool compat = widget.data.IsSubTypeOf(slot.type, nif.slot.type);
+        if(slot.runtimeType == hndl.slot.runtimeType){
+          bool compat = widget.data.IsSubTypeOf(slot.type, hndl.slot.type);
           //Output type must be input type's sub class
           //if(slot is OutSlotInfo){
           //  compat = lib.reg.IsSubTypeOf(slot.type, nif.slot.type);
@@ -499,16 +557,16 @@ class _CodePageState extends State<CodePage> {
           //}
           if(compat){
             setState(() {
-              slot.ConcatSlot(nif.slot); 
+              slot.ConcatSlot(hndl.slot);
             });
             return;
           }
         }
       }
-      ShowNodeSelPopup(nif.ctrl, nif.slot);        
+      ShowNodeSelPopup(hndl.ctrl, hndl.slot);
 
     }
-   
+   */
       
     
   }
@@ -518,30 +576,23 @@ class _CodePageState extends State<CodePage> {
     setState(() {
       (nsPopup as NodeSelPopup).slot?.Disconnect();
       nsPopup = null;
+      widget.data.OnCodeChange();
     });
   }
 
   
-  Iterable<NodeSearchInfo> _QueryAvailableFn(SlotInfo? slot)sync*{
-
-    if(slot == null){
-      yield* widget.data.FindMatchingNode(null, null);
-    }
-
-    if(slot is InSlotInfo){
-      yield* widget.data.FindMatchingNode(slot.type, null);
-    }
-
-    if(slot is OutSlotInfo){
-      yield* widget.data.FindMatchingNode(null, slot.type);
-    }
-
+  Iterable<GraphNodeQueryResult> _QueryAvailableFn(SlotInfo? slot){
+    return widget.data.FindNodeWithConnectableSlot(slot);
   }
 
 
-  void ShowNodeSelPopup(DFWController pos, SlotInfo? nif){
+  void ShowNodeSelPopup(
+    DFWController pos,
+    SlotInfo? hndlSlot,
+    SlotInfo? rear
+  ){
     setState(() {
-      nsPopup = NodeSelPopup(pos, nif, _QueryAvailableFn(nif),
+      nsPopup = NodeSelPopup(pos, hndlSlot, _QueryAvailableFn(rear),
       (nif) { 
         setState(() {
           widget.data.AddNode(nif);
@@ -560,18 +611,19 @@ class _CodePageState extends State<CodePage> {
     });
   }
 
-  void RemoveNode(NodeHolder inf) {
+  void RemoveNode(DrawableNodeMixin node) {
     assert(mounted);
     setState(() {
-      widget.data.RemoveNode(inf);
-      inf.info.RemoveLinks();
+      //Handle things before triggering events
+      node.RemoveLinks();
+      widget.data.RemoveNode(node);
     });
   }
   
-  void NewNode(NodeHolder inf){
+  void NewNode(DrawableNodeMixin node){
     assert(mounted);
     setState(() {
-      widget.data.AddNode(inf);
+      widget.data.AddNode(node);
     });
   }
       
@@ -581,9 +633,9 @@ class NodeSelPopup extends StatelessWidget{
 
   final SlotInfo? slot;
   final DFWController ctrl;
-  void Function(NodeHolder) onSelect;
+  void Function(DrawableNodeMixin) onSelect;
 
-  late Iterable<NodeSearchInfo> availNodes;
+  late Iterable<GraphNodeQueryResult> availNodes;
 
   NodeSelPopup(this.ctrl, this.slot, this.availNodes, this.onSelect){
     ctrl.layoutBehavior = PositioningBehavior.StopAtEdge;
@@ -637,8 +689,14 @@ class NodeSelPopup extends StatelessWidget{
                       onTap: (){DoNodeSelection(fn);},
                       child: Row(
                         children:[
-                          Expanded(child: Text(fn.node.displayName)),
-                          Text(fn.cat),
+                          Text(fn.node.displayName),
+                          Expanded(
+                            child: Text(fn.category,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: TextStyle(fontStyle: FontStyle.italic),
+                            )
+                          ),
                         ]
                       )
                     ),
@@ -652,39 +710,24 @@ class NodeSelPopup extends StatelessWidget{
     );
   }
 
-  NodeHolder InstantiateNode(NodeSearchInfo info){
-    NodeHolder nif = NodeHolder(info.node.Clone());
+  DrawableNodeMixin InstantiateNode(GraphNodeQueryResult result){
+    var nif = result.node.Clone() as DrawableNodeMixin;
 
     nif.ctrl = ctrl..layoutBehavior = null;
 
-
     if(slot == null) return nif;
 
-    slot!.node = nif.info;
-
-    if(slot is OutSlotInfo){
-      var tgtSlot = nif.info.outSlot[info.position];
-      tgtSlot.ConcatSlot(slot!);
-      
-      //slot!.name = nif.info.outSlot[info.position].name;
-      //slot!.type = nif.info.outSlot[info.position].type;
-      //nif.info.outSlot[info.position] = slot as OutSlotInfo;
-      return nif;
-    }
-    
-    if(slot is InSlotInfo){
-      //slot!.name = nif.info.inSlot[info.position].name;
-      //slot!.type = nif.info.inSlot[info.position].type;
-      var tgtSlot = nif.info.inSlot[info.position];
-      tgtSlot.ConcatSlot(slot!);
-      return nif;
-      
-    }
-
+    slot!.node = nif;
+    var tgtSlot = result.isInput?
+      nif.inSlot[result.slotIdx]:
+      nif.outSlot[result.slotIdx];
+    tgtSlot.ConcatSlot(slot!);
     return nif;
+
+
   }
 
-  void DoNodeSelection(NodeSearchInfo info){
+  void DoNodeSelection(GraphNodeQueryResult info){
     var inst = InstantiateNode(info);
     onSelect(inst);
   }
@@ -697,10 +740,10 @@ class PNode extends StatefulWidget {
   //String aVeryLongName;
   //DFWController ctrl;
 
-  NodeHolder inf;
+  DrawableNodeMixin drawableNode;
   GeometryTrackHandle ghandle;
 
-  PNode(this.inf, this.ghandle):super(key: inf.key);
+  PNode(this.drawableNode, this.ghandle):super(key: drawableNode.key);
 
   @override
   _PNodeState createState() => _PNodeState();
@@ -715,7 +758,7 @@ class _PNodeState extends State<PNode> {
   }
 
   Widget _BuildNodeContent(BuildContext ctx){
-    var n = widget.inf.info;
+    var n = widget.drawableNode;
     if(n is GNPainterMixin){
       return n.Draw(ctx, UpdateNode);
     }
@@ -755,14 +798,14 @@ class _PNodeState extends State<PNode> {
 
   @override
   Widget build(BuildContext context) {
-    var closable = true;
-    if(widget.inf.info is GNPainterMixin) 
-      closable = (widget.inf.info as GNPainterMixin).closable;
+    var n = widget.drawableNode;
+    var closable = n.closable;
+
     return DraggableFloatingWindow(
-      ctrl: widget.inf.ctrl,
+      ctrl: widget.drawableNode.ctrl,
     child: GeometryTracker(
       handle: widget.ghandle,
-          child: IntrinsicWidth(
+      child: IntrinsicWidth(
         stepWidth: 30,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -777,7 +820,7 @@ class _PNodeState extends State<PNode> {
                 child: Row(children: [
                   Container(width: 30, height: 30, child: Icon(Icons.book)),
                   Expanded(
-                    child: Text(widget.inf.info.displayName)
+                    child: Text(widget.drawableNode.displayName)
                   ),
                   if(closable)
                     Container(
@@ -785,7 +828,7 @@ class _PNodeState extends State<PNode> {
                       child: TextButton(
                         onPressed:(){
                           var cps = context.findRootAncestorStateOfType<_CodePageState>();
-                          cps?.RemoveNode(widget.inf);
+                          cps?.RemoveNode(widget.drawableNode);
                         }, 
                         child: Icon(Icons.close)
                       ),
@@ -794,8 +837,8 @@ class _PNodeState extends State<PNode> {
               ),
             ),
           
-            _BuildNodeContent(context),
-            
+            //_BuildNodeContent(context),
+            n.Draw(context, UpdateNode),
           ]
         ),
       ),
@@ -887,12 +930,13 @@ class InputSlot extends SlotBase {
 class _InputSlotState extends _SlotBaseState<InputSlot> {
 
   @override
-  HandleNode GetLinkHandle(){
-    return cps!.DoAddLink(null, widget.info as InSlotInfo);
+  HandleNode? GetLinkHandle(){
+    return cps!.DoCreateDragHandle(null, widget.info as InSlotInfo);
   }
 
   @override
   Widget CreateContent(){
+    var slot = widget.info;
     return Row(
         children: [
           Listener(
@@ -902,9 +946,9 @@ class _InputSlotState extends _SlotBaseState<InputSlot> {
               child:Padding(
                 padding: EdgeInsets.all(3),
                 child: Icon(
-                  GetIconForSlot(widget.info),
+                  GetIconForSlot(slot),
                   size: 14,
-                  color: GetColorForSlot(widget.info),
+                  color: GetColorForSlot(slot),
                 ),
               ),
             ),
@@ -922,9 +966,8 @@ class OutputSlot extends SlotBase{
     {
       Key? key,
       required OutSlotInfo info,
-      //required this.child
     }
-  ):super(key: key, info: info);
+  ):super(key: key, info: info,);
 
   @override
   _OutputSlotState createState() => _OutputSlotState();
@@ -934,12 +977,14 @@ class _OutputSlotState extends _SlotBaseState<OutputSlot> {
 
 
   @override
-  HandleNode GetLinkHandle(){
-    return cps!.DoAddLink(widget.info as OutSlotInfo, null);
+  HandleNode? GetLinkHandle(){
+    return cps!.DoCreateDragHandle(widget.info as OutSlotInfo, null);
   }
+
 
   @override
   Widget CreateContent(){
+    var slot = widget.info;
     return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -954,9 +999,9 @@ class _OutputSlotState extends _SlotBaseState<OutputSlot> {
               Padding(
                 padding: EdgeInsets.all(3),
                 child: Icon(
-                  GetIconForSlot(widget.info),
+                  GetIconForSlot(slot),
                   size: 14,
-                  color: GetColorForSlot(widget.info),
+                  color: GetColorForSlot(slot),
                 ),
               ),
 
@@ -968,12 +1013,22 @@ class _OutputSlotState extends _SlotBaseState<OutputSlot> {
 
 }
 
+abstract class ISlotPainter{
+  IconData get iconConnected;
+  IconData get iconDisconnected;
+  Color get iconColor;
+}
 
 abstract class SlotBase extends StatefulWidget{
 
   final SlotInfo info;
 
-  SlotBase({Key? key, required this.info}):super(key: key);
+
+
+  SlotBase({
+    Key? key,
+    required this.info,
+  }):super(key: key);
 }
 
 abstract class _SlotBaseState<T extends SlotBase> extends State<T>{
@@ -1002,7 +1057,7 @@ abstract class _SlotBaseState<T extends SlotBase> extends State<T>{
     _gestureRecognizer.addPointer(e);
   }
 
-  HandleNode GetLinkHandle();
+  HandleNode? GetLinkHandle();
 
   Offset? dragBeginPos;
   PanGestureRecognizer _createGR(){
@@ -1022,8 +1077,8 @@ abstract class _SlotBaseState<T extends SlotBase> extends State<T>{
           var ro = cps!.context.findRenderObject()as RenderBox;
           var localPos = ro.globalToLocal(d.globalPosition);
 
-          l.ctrl.dx = localPos.dx;
-          l.ctrl.dy = localPos.dy;
+          l?.ctrl.dx = localPos.dx;
+          l?.ctrl.dy = localPos.dy;
 
           handle = l;
           

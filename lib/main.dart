@@ -19,20 +19,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:infcanvas/toolbar_widget.dart';
-import 'package:infcanvas/utilities/scripting/vm_types.dart';
+import 'package:infcanvas/scripting/editor/vm_types.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
-import 'package:infcanvas/widgets/scripting/brush_editor.dart';
-import 'package:infcanvas/widgets/scripting/shader_editor.dart';
-import 'package:infcanvas/widgets/scripting/shaderlib_inspector.dart';
+import 'package:infcanvas/scripting/brush_editor.dart';
 
-import 'util.dart';
-import 'canvas_widget.dart';
-import 'layerman_widget.dart';
-import 'widgets/functional/floating.dart';
-import 'widgets/scripting/codepage.dart';
-
-import 'widgets/scripting/lib_inspector.dart';
-import 'widgets/scripting/libreg_inspector.dart';
+import 'package:infcanvas/canvas_widget.dart';
+import 'package:infcanvas/widgets/functional/floating.dart';
+import 'package:infcanvas/scripting/codepage.dart';
 
 void main() {
 
@@ -53,7 +46,7 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
+/*
 class EditorWrapper extends StatefulWidget {
   @override
   _EditorWrapperState createState() => _EditorWrapperState();
@@ -86,7 +79,7 @@ class _EditorWrapperState extends State<EditorWrapper> {
     return LibRegInspector(reg);
   }
 }
-
+*/
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key? key, this.title}) : super(key: key);
 
@@ -246,12 +239,12 @@ class BrushToolbar extends StatefulWidget {
 
 class _BrushToolbarState extends State<BrushToolbar> {
 
-  List<EditorBrushData> _brushes = [];
-  EditorBrushData? selected;
+  List<BrushData> _brushes = [];
+  BrushData? selected;
 
-  Map<EditorBrushData, ui.BrushInstance> _inst = {};
+  Map<BrushData, ui.BrushInstance> _inst = {};
 
-  Widget BuildEntry(EditorBrushData data){
+  Widget BuildEntry(BrushData data){
     Widget button;
     if(data == selected){
       button = ElevatedButton(
@@ -272,7 +265,7 @@ class _BrushToolbarState extends State<BrushToolbar> {
     );
   }
 
-  void SelectBrush(EditorBrushData? b){
+  void SelectBrush(BrushData? b){
     var inst = _inst[b];
     if(selected != b){
       setState(() {
@@ -282,7 +275,7 @@ class _BrushToolbarState extends State<BrushToolbar> {
     widget.onSelect(inst);
   }
 
-  bool UpdateInstance(EditorBrushData d){
+  bool UpdateInstance(BrushData d){
     var res = d.PackageBrush();
     ui.PipelineDesc? desc = res.first;
     String? errMsg = res.last;
@@ -298,7 +291,7 @@ class _BrushToolbarState extends State<BrushToolbar> {
     return false;
   }
 
-  void ShowEditor(EditorBrushData d){
+  void ShowEditor(BrushData d){
     Navigator.of(context).push(
       MaterialPageRoute(builder: (c)=>BrushEditor(d))
     ).then((value){
@@ -333,7 +326,7 @@ class _BrushToolbarState extends State<BrushToolbar> {
           child: TextButton(
             onPressed: (){
               setState(() {
-                _brushes.add(EditorBrushData.createNew("Brush ${_brushes.length}"));
+                _brushes.add(BrushData.createNew("Brush ${_brushes.length}"));
               });
             },
             child: Icon(Icons.add)

@@ -414,9 +414,9 @@ class FWMoveHandle extends StatelessWidget {
 
 class PopupBuilder<T> extends StatefulWidget{
 
-  Widget Function(void Function()) contentBuilder;
-  Widget Function(void Function()) popupBuilder;
-  bool Function(PopupBuilder<T>)? updateShouldClose;
+  Widget Function(void Function(), T?) contentBuilder;
+  Widget Function(void Function(), T?) popupBuilder;
+  bool Function(T?)? updateShouldClose;
 
   bool tapToDismiss;
   T? data;
@@ -452,7 +452,7 @@ class _PopupBuilderState<T> extends State<PopupBuilder<T>> {
   @override
   void didUpdateWidget(PopupBuilder<T> oldWidget){
     super.didUpdateWidget(oldWidget);
-    bool shouldClose = widget.updateShouldClose?.call(oldWidget)??true;
+    bool shouldClose = widget.updateShouldClose?.call(oldWidget.data)??true;
     if(shouldClose){
       WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
         ClosePopup();
@@ -464,7 +464,7 @@ class _PopupBuilderState<T> extends State<PopupBuilder<T>> {
   Widget build(BuildContext context) {
     return GeometryTracker(
       handle: _gHandle,
-      child: widget.contentBuilder(ShowPopup),
+      child: widget.contentBuilder(ShowPopup, widget.data),
     );
   }
 
@@ -476,7 +476,7 @@ class _PopupBuilderState<T> extends State<PopupBuilder<T>> {
   void ShowPopup(){
     if(_pop != null) fwps.CloseWindow(_pop!);
     _pop = _buildPopWrapper(
-      widget.popupBuilder(ClosePopup)
+      widget.popupBuilder(ClosePopup, widget.data)
     );
     fwps.ShowPopup(_pop!, tapOutsideToDismiss: widget.tapToDismiss);
   }

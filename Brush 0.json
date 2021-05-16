@@ -1,0 +1,498 @@
+{
+  "brushName": "Brush 0",
+  "program": {
+    "libName": "",
+    "dependencies": [],
+    "types": [
+      {
+        "typeName": "EventGraph",
+        "refType": true,
+        "fields": {
+          "i": "Num|Float"
+        },
+        "staticFields": {},
+        "methods": [
+          {
+            "methodName": "OnLoad",
+            "static": true,
+            "const": false,
+            "args": {},
+            "returns": {},
+            "entry": {
+              "tag": "CodeEntryNode",
+              "position_x": 50.0,
+              "position_y": 50.0
+            },
+            "body": [
+              {
+                "tag": "CodeReturnNode",
+                "position_x": 450.0,
+                "position_y": 50.0
+              }
+            ],
+            "links": [
+              {
+                "from": 0,
+                "fromSlot": 0,
+                "to": 1,
+                "toSlot": 0
+              }
+            ]
+          },
+          {
+            "methodName": "OnPaintBegin",
+            "static": false,
+            "const": false,
+            "args": {},
+            "returns": {},
+            "entry": {
+              "tag": "CodeEntryNode",
+              "position_x": 49.0,
+              "position_y": 62.0
+            },
+            "body": [
+              {
+                "tag": "CodeReturnNode",
+                "position_x": 620.0,
+                "position_y": 63.0
+              },
+              {
+                "tag": "CodeThisGetterNode",
+                "position_x": 61.0,
+                "position_y": 157.0
+              },
+              {
+                "tag": "CodeFieldSetterNode",
+                "position_x": 328.0,
+                "position_y": 138.0,
+                "data": {
+                  "static": false,
+                  "target": "|EventGraph",
+                  "name": "i"
+                }
+              },
+              {
+                "tag": "ConstFloatNode",
+                "position_x": 61.0,
+                "position_y": 228.0,
+                "data": 1.0
+              }
+            ],
+            "links": [
+              {
+                "from": 0,
+                "fromSlot": 0,
+                "to": 3,
+                "toSlot": 0
+              },
+              {
+                "from": 2,
+                "fromSlot": 0,
+                "to": 3,
+                "toSlot": 1
+              },
+              {
+                "from": 3,
+                "fromSlot": 0,
+                "to": 1,
+                "toSlot": 0
+              },
+              {
+                "from": 4,
+                "fromSlot": 0,
+                "to": 3,
+                "toSlot": 2
+              }
+            ]
+          },
+          {
+            "methodName": "OnPaintEnd",
+            "static": false,
+            "const": false,
+            "args": {},
+            "returns": {},
+            "entry": {
+              "tag": "CodeEntryNode",
+              "position_x": 50.0,
+              "position_y": 50.0
+            },
+            "body": [
+              {
+                "tag": "CodeReturnNode",
+                "position_x": 450.0,
+                "position_y": 50.0
+              }
+            ],
+            "links": [
+              {
+                "from": 0,
+                "fromSlot": 0,
+                "to": 1,
+                "toSlot": 0
+              }
+            ]
+          },
+          {
+            "methodName": "OnPaintUpdate",
+            "static": false,
+            "const": false,
+            "args": {
+              "Pipeline": "RenderPipeline|PipelineBuilder",
+              "Background": "RenderPipeline|TexEntry",
+              "Size": "Vec|Vec2",
+              "Position": "Vec|Vec2",
+              "Speed": "Vec|Vec2",
+              "Tilt": "Vec|Vec2",
+              "Pressure": "Num|Float"
+            },
+            "returns": {
+              "Pipeline Output": "RenderPipeline|TexEntry"
+            },
+            "entry": {
+              "tag": "CodeEntryNode",
+              "position_x": 145.0,
+              "position_y": 151.0
+            },
+            "body": [
+              {
+                "tag": "CodeReturnNode",
+                "position_x": 1160.0,
+                "position_y": 149.0
+              },
+              {
+                "tag": "CodeFieldSetterNode",
+                "position_x": 427.0,
+                "position_y": 133.0,
+                "data": {
+                  "static": false,
+                  "target": "|EventGraph",
+                  "name": "i"
+                }
+              },
+              {
+                "tag": "CodeThisGetterNode",
+                "position_x": -51.0,
+                "position_y": 360.0
+              },
+              {
+                "tag": "CodeFieldGetterNode",
+                "position_x": 188.0,
+                "position_y": 365.0,
+                "data": {
+                  "static": false,
+                  "target": "|EventGraph",
+                  "name": "i"
+                }
+              },
+              {
+                "tag": "CodeInvokeNode",
+                "position_x": 444.0,
+                "position_y": 406.0,
+                "data": "Num|Float|div"
+              },
+              {
+                "tag": "ConstFloatNode",
+                "position_x": 193.0,
+                "position_y": 438.0,
+                "data": 2.0
+              },
+              {
+                "tag": "CodeThisGetterNode",
+                "position_x": 426.0,
+                "position_y": 72.0
+              },
+              {
+                "tag": "GNBrushPipelineAddStage",
+                "position_x": 926.0,
+                "position_y": 143.0,
+                "data": "MainShaderLib|c"
+              },
+              {
+                "tag": "CodeFieldGetterNode",
+                "position_x": 683.0,
+                "position_y": 95.0,
+                "data": {
+                  "static": false,
+                  "target": "|EventGraph",
+                  "name": "i"
+                }
+              }
+            ],
+            "links": [
+              {
+                "from": 0,
+                "fromSlot": 0,
+                "to": 2,
+                "toSlot": 0
+              },
+              {
+                "from": 0,
+                "fromSlot": 1,
+                "to": 8,
+                "toSlot": 1
+              },
+              {
+                "from": 0,
+                "fromSlot": 2,
+                "to": 8,
+                "toSlot": 4
+              },
+              {
+                "from": 0,
+                "fromSlot": 3,
+                "to": 8,
+                "toSlot": 2
+              },
+              {
+                "from": 2,
+                "fromSlot": 0,
+                "to": 8,
+                "toSlot": 0
+              },
+              {
+                "from": 3,
+                "fromSlot": 0,
+                "to": 4,
+                "toSlot": 0
+              },
+              {
+                "from": 4,
+                "fromSlot": 0,
+                "to": 5,
+                "toSlot": 0
+              },
+              {
+                "from": 5,
+                "fromSlot": 0,
+                "to": 2,
+                "toSlot": 2
+              },
+              {
+                "from": 6,
+                "fromSlot": 0,
+                "to": 5,
+                "toSlot": 1
+              },
+              {
+                "from": 7,
+                "fromSlot": 0,
+                "to": 2,
+                "toSlot": 1
+              },
+              {
+                "from": 7,
+                "fromSlot": 0,
+                "to": 9,
+                "toSlot": 0
+              },
+              {
+                "from": 8,
+                "fromSlot": 0,
+                "to": 1,
+                "toSlot": 0
+              },
+              {
+                "from": 8,
+                "fromSlot": 1,
+                "to": 1,
+                "toSlot": 1
+              },
+              {
+                "from": 9,
+                "fromSlot": 0,
+                "to": 8,
+                "toSlot": 3
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "shader": {
+    "libName": "MainShaderLib",
+    "functions": [
+      {
+        "functionName": "c",
+        "args": {
+          "texCoord": "float2",
+          "texSize": "float2",
+          "alpha": "float",
+          "bg": "shader"
+        },
+        "returnType": "float4",
+        "entry": {
+          "tag": "ShaderRetNode",
+          "position_x": 779.0,
+          "position_y": 218.0
+        },
+        "body": [
+          {
+            "tag": "ShaderArgGetNode",
+            "position_x": -548.0,
+            "position_y": 116.0,
+            "data": "texCoord"
+          },
+          {
+            "tag": "ShaderArgGetNode",
+            "position_x": -550.0,
+            "position_y": 196.0,
+            "data": "texSize"
+          },
+          {
+            "tag": "ShaderBuiltinBinOp",
+            "position_x": -318.0,
+            "position_y": 140.0,
+            "data": "Divide|/"
+          },
+          {
+            "tag": "ShaderBuiltinFn",
+            "position_x": 528.0,
+            "position_y": 216.0,
+            "data": "@genType mix  (@genType x,    @genType y,   @genType alpha)"
+          },
+          {
+            "tag": "ShaderArgGetNode",
+            "position_x": -44.0,
+            "position_y": 397.0,
+            "data": "bg"
+          },
+          {
+            "tag": "ShaderArgGetNode",
+            "position_x": -15.0,
+            "position_y": 478.0,
+            "data": "texCoord"
+          },
+          {
+            "tag": "ShaderBuiltinFn",
+            "position_x": 221.0,
+            "position_y": 400.0,
+            "data": "float4 sample(shader tex, float2 pos)"
+          },
+          {
+            "tag": "ShaderArgGetNode",
+            "position_x": 530.0,
+            "position_y": 309.0,
+            "data": "alpha"
+          },
+          {
+            "tag": "ElementGetter",
+            "position_x": -45.0,
+            "position_y": 110.0,
+            "data": "float2|x"
+          },
+          {
+            "tag": "ElementGetter",
+            "position_x": -48.0,
+            "position_y": 172.0,
+            "data": "float2|y"
+          },
+          {
+            "tag": "ShaderBuiltinFn",
+            "position_x": 225.0,
+            "position_y": 140.0,
+            "data": "float4 float4(float x, float y, float z, float w)"
+          },
+          {
+            "tag": "ShaderConstFloatNode",
+            "position_x": -47.0,
+            "position_y": 309.0,
+            "data": 1.0
+          },
+          {
+            "tag": "ShaderConstFloatNode",
+            "position_x": -47.0,
+            "position_y": 234.0,
+            "data": 0.0
+          }
+        ],
+        "links": [
+          {
+            "from": 1,
+            "fromSlot": 0,
+            "to": 3,
+            "toSlot": 0
+          },
+          {
+            "from": 2,
+            "fromSlot": 0,
+            "to": 3,
+            "toSlot": 1
+          },
+          {
+            "from": 3,
+            "fromSlot": 0,
+            "to": 9,
+            "toSlot": 0
+          },
+          {
+            "from": 3,
+            "fromSlot": 0,
+            "to": 10,
+            "toSlot": 0
+          },
+          {
+            "from": 4,
+            "fromSlot": 0,
+            "to": 0,
+            "toSlot": 0
+          },
+          {
+            "from": 5,
+            "fromSlot": 0,
+            "to": 7,
+            "toSlot": 0
+          },
+          {
+            "from": 6,
+            "fromSlot": 0,
+            "to": 7,
+            "toSlot": 1
+          },
+          {
+            "from": 7,
+            "fromSlot": 0,
+            "to": 4,
+            "toSlot": 1
+          },
+          {
+            "from": 8,
+            "fromSlot": 0,
+            "to": 4,
+            "toSlot": 2
+          },
+          {
+            "from": 9,
+            "fromSlot": 0,
+            "to": 11,
+            "toSlot": 0
+          },
+          {
+            "from": 10,
+            "fromSlot": 0,
+            "to": 11,
+            "toSlot": 1
+          },
+          {
+            "from": 11,
+            "fromSlot": 0,
+            "to": 4,
+            "toSlot": 0
+          },
+          {
+            "from": 12,
+            "fromSlot": 0,
+            "to": 11,
+            "toSlot": 3
+          },
+          {
+            "from": 13,
+            "fromSlot": 0,
+            "to": 11,
+            "toSlot": 2
+          }
+        ]
+      }
+    ]
+  }
+}
