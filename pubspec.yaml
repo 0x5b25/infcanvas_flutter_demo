@@ -32,6 +32,7 @@ dependencies:
   file_selector: ^0.8.2
   file_selector_windows:
   path: ^1.8.0
+  reorderables: ^0.4.1
 
 dev_dependencies:
   flutter_test:
@@ -83,9 +84,9 @@ flutter:
   # see https://flutter.dev/custom-fonts/#from-packages
 dependency_overrides:	
   sky_engine:	
-    path: D:/google/dev/flutter/engine/src/out/host_debug_unopt/gen/dart-pkg/sky_engine
+    path: D:/google/dev/flutter/engine/src/out/host_debug/gen/dart-pkg/sky_engine
   sky_services:	
-    path: D:/google/dev/flutter/engine/src/out/host_debug_unopt/gen/dart-pkg/sky_services
+    path: D:/google/dev/flutter/engine/src/out/host_debug/gen/dart-pkg/sky_services
 
 analyzer:
   language:

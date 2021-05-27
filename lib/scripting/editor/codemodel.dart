@@ -335,6 +335,13 @@ class CodeFieldArray extends CodeElement{
 
   int get length => fields.length;
 
+  void Clear(){
+    for(var f in fields){
+      f.DisposeElement();
+    }
+    fields.clear();
+  }
+
   void _RemoveField(CodeField which){
     fields.remove(which);
     var evt = FieldRemoveEvent(which);
@@ -369,9 +376,7 @@ class CodeFieldArray extends CodeElement{
 
   @override
   void DisposeElement(){
-    for(var f in fields){
-      f.DisposeElement();
-    }
+    Clear();
     super.DisposeElement();
   }
 

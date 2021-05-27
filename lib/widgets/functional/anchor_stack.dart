@@ -24,7 +24,7 @@ class GeometryTrackHandle{
 
   Offset? Function(RenderBox?)? _req;
   Size Function()? _reqSize;
-  Rect? RequestGeometry({RenderBox? relativeTo}) { 
+  Rect? RequestGeometry({RenderBox? relativeTo}) {
     var pos = _req?.call(relativeTo);
     if(pos == null) return null;
     return pos & size;
@@ -92,11 +92,11 @@ class GeometryTrackerRO extends RenderProxyBox{
     super.layout(c, parentUsesSize:true);
     _h.size = size;
   }
-  
-  //@override
-  //void performLayout(){
-  //  super.performLayout();
-  //}
+
+//@override
+//void performLayout(){
+//  super.performLayout();
+//}
 
 }
 
@@ -115,7 +115,7 @@ class AnchorStack extends MultiChildRenderObjectWidget{
     this.fgPainter,
     List<Widget> children = const []
   })
-    :super(key:key, children: children){
+      :super(key:key, children: children){
 
   }
 
@@ -123,21 +123,21 @@ class AnchorStack extends MultiChildRenderObjectWidget{
   @override
   AnchorStackRO createRenderObject(BuildContext context) {
     return AnchorStackRO(
-      clipBehavior: clipBehavior
+        clipBehavior: clipBehavior
     )
-    ..bgPainter = bgPainter
-    ..fgPainter = fgPainter
+      ..bgPainter = bgPainter
+      ..fgPainter = fgPainter
     ;
   }
 
   @override
   void updateRenderObject(
-    BuildContext context, AnchorStackRO object){
+      BuildContext context, AnchorStackRO object){
     object
       ..clipBehavior = clipBehavior
       ..bgPainter = bgPainter
       ..fgPainter=fgPainter
-      ;
+    ;
   }
 
   @override
@@ -162,6 +162,7 @@ class AnchoredPosition extends ParentDataWidget<ASParentData>{
 
   PositioningFn? onPositioning;
   SizingFn? onSizing;
+  bool forceUpdate;
 
   AnchoredPosition({
     Key? key,
@@ -177,17 +178,20 @@ class AnchoredPosition extends ParentDataWidget<ASParentData>{
     this.tracking,
     this.onPositioning,
     this.onSizing,
+    this.forceUpdate = false,
     required Widget child
   })
-  :super(key:key, child:child){
+      :super(key:key, child:child){
 
   }
 
-  AnchoredPosition.fill({Key? key, required Widget child})
-    :left = 0,top = 0, right = 0, bottom = 0,
-    anchor = const Rect.fromLTRB(0, 0, 1, 1),
-    alignX = 0, alignY = 0,
-    super(key: key, child: child)
+  AnchoredPosition.fill({
+    Key? key, required Widget child, this.forceUpdate = false,
+  })
+      :left = 0,top = 0, right = 0, bottom = 0,
+        anchor = const Rect.fromLTRB(0, 0, 1, 1),
+        alignX = 0, alignY = 0,
+        super(key: key, child: child)
   {}
 
   AnchoredPosition.fixedSize({
@@ -205,10 +209,11 @@ class AnchoredPosition extends ParentDataWidget<ASParentData>{
     this.alignY = 0,
     this.onPositioning,
     this.onSizing,
+    this.forceUpdate = false,
     required Widget child
   }):
-    anchor = Rect.fromLTWH(anchorX, anchorY, 0, 0),
-    super(key:key, child:child)
+        anchor = Rect.fromLTWH(anchorX, anchorY, 0, 0),
+        super(key:key, child:child)
   {
     //Can't set height and top/bottom simutaneously
     //assert((top!=null && bottom!= null)!=(height!=null));
@@ -219,7 +224,7 @@ class AnchoredPosition extends ParentDataWidget<ASParentData>{
   void applyParentData(RenderObject renderObject) {
     assert(renderObject.parentData is ASParentData);
     final ASParentData parentData = renderObject.parentData! as ASParentData;
-    bool needsLayout = false;
+    bool needsLayout = forceUpdate;
 
     if (parentData.left != left) {
       parentData.left = left;
@@ -325,16 +330,16 @@ class ASParentData extends ContainerBoxParentData<RenderBox>{
 
 class AnchorStackRO extends RenderBox
     with ContainerRenderObjectMixin<RenderBox, ASParentData>,
-         RenderBoxContainerDefaultsMixin<RenderBox, ASParentData>{
+        RenderBoxContainerDefaultsMixin<RenderBox, ASParentData>{
 
   PaintFn? bgPainter, fgPainter;
 
   AnchorStackRO({
     List<RenderBox>? children,
     Clip clipBehavior = Clip.hardEdge,
-  }) : 
-       assert(clipBehavior != null),
-       _clipBehavior = clipBehavior {
+  }) :
+        assert(clipBehavior != null),
+        _clipBehavior = clipBehavior {
     addAll(children);
   }
 
@@ -386,7 +391,7 @@ class AnchorStackRO extends RenderBox
     if (!(child.parentData is ASParentData))
       child.parentData = ASParentData();
 
-    var cpd = child.parentData as ASParentData;    
+    var cpd = child.parentData as ASParentData;
   }
 
   /// How to size the non-positioned children in the stack.
@@ -427,7 +432,7 @@ class AnchorStackRO extends RenderBox
       final ASParentData childParentData = child.parentData! as ASParentData;
       //There might have a problem...
       //if (!childParentData.isPositioned)
-        extent = max(extent, mainChildSizeGetter(child));
+      extent = max(extent, mainChildSizeGetter(child));
       assert(child.parentData == childParentData);
       child = childParentData.nextSibling;
     }
@@ -459,7 +464,7 @@ class AnchorStackRO extends RenderBox
     return defaultComputeDistanceToHighestActualBaseline(baseline);
   }
 
-  
+
   @override
   Size computeDryLayout(BoxConstraints constraints) {
     return _computeSize(
@@ -524,7 +529,7 @@ class AnchorStackRO extends RenderBox
   }
 
 
-  
+
   /// Lays out the positioned `child` according to `alignment` within a Stack of `size`.
   ///
   /// Returns true when the child has visual overflow.
@@ -605,7 +610,7 @@ class AnchorStackRO extends RenderBox
 
     if(cw.isFinite) childConstraints = childConstraints.tighten(width:cw);
     if(ch.isFinite) childConstraints = childConstraints.tighten(height:ch);
-        
+
     LayoutParams lps = LayoutParams()
       ..anchorGeom = Rect.fromLTRB(al, at, ar, ab)
       ..constraintGeom = Rect.fromLTRB(cl, ct, cr, cb)
@@ -614,7 +619,7 @@ class AnchorStackRO extends RenderBox
       ..widgetSize = Size(cw, ch)
       ..stackSize = size
     ;
-    
+
     if(childParentData.onSizing!= null)
     {
       childConstraints = childParentData.onSizing!(lps);
@@ -623,12 +628,12 @@ class AnchorStackRO extends RenderBox
 
     //}
     //childConstraints = BoxConstraints.tight(childRect.size);
-    
+
     child.layout(childConstraints, parentUsesSize: true);
 
     Offset childPos =  Offset.zero;
 
-    
+
 
     double x = 0;
     if (cl.isFinite) {
@@ -639,7 +644,7 @@ class AnchorStackRO extends RenderBox
       x = ax - child.size.width * childParentData.alignX;
     }
 
-    
+
 
     double y = 0;
     if (ct.isFinite) {
@@ -653,19 +658,19 @@ class AnchorStackRO extends RenderBox
     if(childParentData.onPositioning != null){
       lps.widgetSize = child.size;
       childPos = childParentData.onPositioning!.call(
-        lps, Offset(x, y)
+          lps, Offset(x, y)
       );
     }else{
       childPos =  Offset(x,y);
     }
 
-    
+
     if (childPos.dx < 0.0 || childPos.dx + child.size.width > size.width)
       hasVisualOverflow = true;
     if (childPos.dy < 0.0 || childPos.dy + child.size.height > size.height)
       hasVisualOverflow = true;
 
-    
+
 
 
     childParentData.offset = childPos;
@@ -691,7 +696,7 @@ class AnchorStackRO extends RenderBox
       //if (!childParentData.isPositioned) {
       //  childParentData.offset = Offset.zero;
       //} else {
-        _hasVisualOverflow = layoutPositionedChild(child, childParentData, size) || _hasVisualOverflow;
+      _hasVisualOverflow = layoutPositionedChild(child, childParentData, size) || _hasVisualOverflow;
       //}
 
       assert(child.parentData == childParentData);

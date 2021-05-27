@@ -130,7 +130,7 @@ List CompileShaderBody(ShaderFunction s) {
   );
   if(ctx.hasErr) return [null, "Shader function ${s.fullName} has error"];
 
-  return [CompiledShaderBody(s, ctx.src.join(), ctx.refs), null];
+  return [CompiledShaderBody(s, ctx.src.join('\n'), ctx.refs), null];
 }
 
 ///[Src, Err]
@@ -190,14 +190,14 @@ List<String?> LinkShader(ShaderFunction s){
   //Compile functions
 
   String linked = "";
-  String mainArgList = "";
 
-  //Add uniforms
-  for(var f in s.args.fields){
+  //Add uniforms, arg0 is texCoord input in main function
+  //argument
+  for(int i = 1; i < s.args.fields.length;i++){
+    var f =  s.args.fields[i];
     var ty = f.type!.fullName;
     var nm = f.name.value;
     linked += "uniform $ty $nm;\n";
-    mainArgList += ", $nm";
   }
   linked += "\n";
   //Insert functions

@@ -62,6 +62,7 @@ class BrushPipeTU extends VMNodeTranslationUnit{
       InstLine(OpCode.ldarg, i:pbAddr),
       InstLine(OpCode.d_embed, s:"RenderPipeline|PipelineBuilder|AddStage")
     ]));
+    ctx.AssignStackPosition();
     ctx.AddNextExec(node.execOut.link?.to.node as CodeGraphNode?);
   }
 
@@ -297,19 +298,22 @@ class BrushData {
     return desc!=null;
   }
 
+  BrushData.createSkeleton(this.name){}
+
   BrushData.createNew(this.name, {
     Iterable<VMLibInfo> builtinLibs = const {}
   }){
     progLib = CodeLibrary()
       ..name.value = "";
-    _ValidateBrushEventGraph();
+    ValidateBrushEventGraph();
 
     shaderLib = ShaderLib()..name.value = "MainShaderLib";
 
   }
 
+
   BrushData(this.name, this.progLib, this.shaderLib){
-    _ValidateBrushEventGraph();
+    ValidateBrushEventGraph();
   }
 
 
@@ -363,7 +367,7 @@ class BrushData {
 
   }
 
-  _ValidateBrushEventGraph(){
+  ValidateBrushEventGraph(){
     _NT(name) => VMBuiltinTypes.types[name];
     //Review: No randomize functions allowed: all randomize must
     //rely only on world position. i.e. repeatable
@@ -384,8 +388,8 @@ class BrushData {
     _FindOrCreateMtd(String name){
       for(var m in _progClass!.methods){
         if(m.name.value == name) {
-          m.args.fields.clear();
-          m.rets.fields.clear();
+          m.args.Clear();
+          m.rets.Clear();
           return m as CodeMethod;
         }
       }
@@ -402,9 +406,12 @@ class BrushData {
             ..args.editable = false
             ..rets.editable = false;
     var m_OnPaintBegin = _FindOrCreateMtd("OnPaintBegin");
-    m_OnPaintBegin..editable = false
-                  ..args.editable = false
-                  ..rets.editable = false;
+    m_OnPaintBegin
+      ..args.AddField(CodeField("Position",      )..type=_NT("Vec|Vec2") )
+      ..args.AddField(CodeField("Color",         )..type=_NT("Vec|Vec4") )
+      ..editable = false
+      ..args.editable = false
+      ..rets.editable = false;
 
     //TODO:Add world position input to OnPaintBegin
     var m_OnPaintEnd = _FindOrCreateMtd("OnPaintEnd");
@@ -416,6 +423,8 @@ class BrushData {
     m_OnPaintUpdate
         ..args.AddField(CodeField("Pipeline",      )..type=_NT("RenderPipeline|PipelineBuilder") )
         ..args.AddField(CodeField("Background",    )..type=_NT("RenderPipeline|TexEntry") )
+        ..args.AddField(CodeField("Color",         )..type=_NT("Vec|Vec4") )
+        ..args.AddField(CodeField("Brush Opacity", )..type=_NT("Num|Float") )
         ..args.AddField(CodeField("Size",          )..type=_NT("Vec|Vec2") )
         ..args.AddField(CodeField("Position",      )..type=_NT("Vec|Vec2") )
         ..args.AddField(CodeField("Speed",         )..type=_NT("Vec|Vec2") )
@@ -431,7 +440,7 @@ class BrushData {
 
   }
 
-  List<ShaderFunction> _pipeStages = [];
+  List<ShaderFunction>? _pipeStages;
 
   ///[Result, errMessage]
   List PackageBrush(){
@@ -441,8 +450,12 @@ class BrushData {
     return res;
   }
   List _PackageBrush(){
+    _pipeStages = [];
     //Build deps
-    List<VMLibInfo> packagedLibs = [];
+    List<VMLibInfo> packagedLibs = [
+      for(var l in VMBuiltinTypes.libs)
+        l.lib
+    ];
     for(var d in progLib.deps){
       var result = CompileLibrary(d);
 
@@ -464,7 +477,7 @@ class BrushData {
 
     //Package shaders
     List<ShaderProgram> shaders = [];
-    for(var s in _pipeStages){
+    for(var s in _pipeStages!){
       //var shader = _shaderLib.LookupShader(s);
       //if(shader == null) return [null, "Shader not found: ${s.libName}|${s.shaderName}"];
       var result = LinkShader(s);
@@ -483,9 +496,9 @@ class BrushData {
   }
 
   int RegisterStage(ShaderFunction? shader) {
-    if(shader == null) return -1;
-    int id = _pipeStages.length;
-    _pipeStages.add(shader);
+    if(shader == null || _pipeStages == null) return -1;
+    int id = _pipeStages!.length;
+    _pipeStages!.add(shader);
     return id;
   }
 
@@ -686,8 +699,7 @@ class _BrushEditorState extends State<BrushEditor>{
         var str = await file.readAsString();
         var data = jsonDecode(str);
         env.brushData = null;
-        var brush = DeserializeBrush(data);
-        widget.data.copyFrom(brush);
+        DeserializeBrushInPlace(widget.data, data);
         env.brushData = widget.data;
       }catch(e){
         _showMyDialog(

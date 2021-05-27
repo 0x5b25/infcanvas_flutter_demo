@@ -9,7 +9,7 @@ import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 import '../functional/floating.dart';
 
 class ColorPickerController{
-  _ColorPickerState? _state;
+  _ColorPickerWidgetState? _state;
   late final ValueNotifier<HSVColor> _color;
   late HSVColor _oldColor;
 
@@ -22,6 +22,7 @@ class ColorPickerController{
     _oldColor = color;
   }
 
+  Color get previousColor => _oldColor.toColor();
   Color get color => _color.value.toColor();
   set color(Color c) => _color.value = HSVColor.fromColor(c);
 
@@ -29,13 +30,13 @@ class ColorPickerController{
     
 }
   
-class ColorPicker extends StatefulWidget{
+class ColorPickerWidget extends StatefulWidget{
   
   final ColorPickerController ctrl;
 
   
 
-  ColorPicker({
+  ColorPickerWidget({
     Key? key,
     required this.ctrl,
   }){
@@ -43,10 +44,10 @@ class ColorPicker extends StatefulWidget{
   }
 
   @override
-  _ColorPickerState createState() => _ColorPickerState();
+  _ColorPickerWidgetState createState() => _ColorPickerWidgetState();
 }
   
-class _ColorPickerState extends State<ColorPicker> {
+class _ColorPickerWidgetState extends State<ColorPickerWidget> {
 
 
   @override

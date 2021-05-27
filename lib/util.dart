@@ -243,19 +243,3 @@ class ClosableWindow{
   }
 
 }
-
-//Enum name getter
-class EnumNameGetter<T>{
-
-  T value;
-
-  EnumNameGetter(this.value);
-
-  String get name{
-    return value.toString().split('.').last;
-  }
-
-  @override
-  String toString()=>name;
-}
-

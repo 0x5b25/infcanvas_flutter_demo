@@ -123,9 +123,6 @@ class VMEditorEnv with Observable{
 
   Iterable<CodeType> AccessableTypes(CodeType? from)sync*{
     var libs = AccessableLibs(from?.library);
-    for(var l in VMBuiltinTypes.libs){
-      yield* l.types;
-    }
     for(var l in libs){
       yield* l.types;
     }
@@ -255,7 +252,7 @@ class VMMethodAnalyzer extends ICodeData with Observable{
   }
 
   late final _analysisTask = SequentialTaskGuard<bool>(
-      () async => FullyAnalyzeMethod()
+      (_) async => FullyAnalyzeMethod()
   );
 
   Future<bool> BeginAnalyzeMethod(){

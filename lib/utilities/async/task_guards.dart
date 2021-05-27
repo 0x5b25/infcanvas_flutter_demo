@@ -5,11 +5,17 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+class Request<T>{
+  Completer<T> c = Completer();
+  dynamic arg;
+  Request(this.arg);
+}
+
 class SequentialTaskGuard<T>{
 
   bool isRunning = false;
-  List<Completer<T>> queued = [];
-  final Future<T> Function() task;
+  List<Request<T>> queued = [];
+  final Future<T> Function(List) task;
   SequentialTaskGuard(this.task);
 
   bool get isScheduled => queued.isNotEmpty;
@@ -20,23 +26,26 @@ class SequentialTaskGuard<T>{
     while(true){
       //Enter critical 2
       if(!isScheduled) break;
-      var _futures = queued;
+      var _req = queued;
       queued = [];
+      var args = [
+        for(var r in _req) r.arg
+      ];
       //Leave critical 2
       //error handles
       T? res;
       var error = null, st = null;
       try {
-        res = await task();
+        res = await task(args);
       } catch(e, stackTrace){
         error = e; st = stackTrace;
         debugPrint("Task runner encounters an error.");
       } finally {
-        for (var f in _futures) {
+        for (var f in _req) {
           if(error == null)
-            f.complete(res);
+            f.c.complete(res);
           else{
-            f.completeError(error, st);
+            f.c.completeError(error, st);
           }
         }
       }
@@ -44,9 +53,9 @@ class SequentialTaskGuard<T>{
     debugPrint("Task runner finished.");
   }
 
-  Future<T> RunNowOrSchedule(){
+  Future<T> RunNowOrSchedule([arg]){
     debugPrint("New task scheduled");
-    var f = _ScheduleRun();
+    var f = _ScheduleRun(arg);
     if(!isRunning){
       debugPrint("Launching task runner...");
       //Enter critical 1
@@ -64,11 +73,11 @@ class SequentialTaskGuard<T>{
     return f;
   }
 
-  Future<T> _ScheduleRun(){
-    var c = Completer<T>();
+  Future<T> _ScheduleRun(arg){
+    var r = Request<T>(arg);
     //Enter critical 2
-    queued.add(c);
+    queued.add(r);
     //Leave critical 2
-    return c.future;
+    return r.c.future;
   }
 }

@@ -18,12 +18,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:infcanvas/toolbar_widget.dart';
+import 'package:infcanvas/canvas/canvas_widget.dart';
 import 'package:infcanvas/scripting/editor/vm_types.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 import 'package:infcanvas/scripting/brush_editor.dart';
 
-import 'package:infcanvas/canvas_widget.dart';
 import 'package:infcanvas/widgets/functional/floating.dart';
 import 'package:infcanvas/scripting/codepage.dart';
 
@@ -99,7 +98,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int _vramCachedItem = 0;
 
   
-  InfCanvasController cvCtrl = InfCanvasController();
+  //InfCanvasController cvCtrl = InfCanvasController();
   GlobalKey fwPanelKey = GlobalKey();
   
 
@@ -112,7 +111,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _counter++;
     });
   }
-
+/*
   @override
   Widget build(BuildContext context) {
 
@@ -224,6 +223,11 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Icon(Icons.add),
       ),
     );
+  }
+
+ */
+  @override build(ctx){
+    return CanvasWidget();
   }
 }
 

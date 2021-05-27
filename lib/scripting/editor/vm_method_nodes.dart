@@ -324,6 +324,9 @@ class VMNormalOpTU extends VMNodeTranslationUnit{
       var idx = rear.outputOrder;
       depAddr[i] = ctx.AddValueDependency(n, idx);
     }
+    //assign position
+    ctx.AssignStackPosition();
+
     //code emits
     if(code != null) {
       ctx.EmitCode(SimpleCB(
@@ -334,6 +337,7 @@ class VMNormalOpTU extends VMNodeTranslationUnit{
       )..debugInfo = "Load arguments");
       ctx.EmitCode(code!);
     }
+
     //Subsequent executions
     for(var s in subsequentExec){
       var n = s.link?.to.node as CodeGraphNode;
@@ -868,7 +872,7 @@ class CodeFieldSetterNode extends CodeGraphNode implements IValidatableNode{
   // [val, target] <- stack top
   @override
   NodeTranslationUnit doCreateTU() => VMNormalOpTU(
-    stackUsage: 1,
+    stackUsage: 0,
     subsequentExec: [execOut],
     valDeps: [valIn, if(!whichField.isStatic) tgtIn],
     code: SimpleCB([whichField.isStatic?

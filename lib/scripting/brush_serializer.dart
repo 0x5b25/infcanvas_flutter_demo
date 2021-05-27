@@ -45,6 +45,15 @@ Map<String, dynamic> SerializeBrush(BrushData brush){
 }
 
 BrushData DeserializeBrush(Map<String, dynamic> data){
+
+  var brush = BrushData.createSkeleton("");
+
+  DeserializeBrushInPlace(brush, data);
+
+  return brush;
+}
+
+void DeserializeBrushInPlace(BrushData brush, Map<String, dynamic> data){
   var name = data["brushName"];
   var data_shd = data["shader"];
   var data_prog = data["program"];
@@ -57,16 +66,16 @@ BrushData DeserializeBrush(Map<String, dynamic> data){
   env_shd.targetLib = shd;
   FillShaderLibSkeleton(env_shd, sser, shd, data_shd);
 
-  var dummyBrush = BrushData.createNew("DummyBrush");
-  dummyBrush.shaderLib = shd;
+  brush.name = name;
+  brush.shaderLib = shd;
+  brush.progLib = prog;
   var ser = BrushProgSerializer();
   var env_brush = BrushEditorEnv();
-  env_brush.brushData = dummyBrush;
+  env_brush.brushData = brush;
   FillLibSkeleton(env_brush, ser, prog, data_prog);
+  brush.ValidateBrushEventGraph();
 
   env_shd.Dispose();
   env_brush.Dispose();
-
-  return BrushData(name, prog, shd);
 }
 

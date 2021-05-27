@@ -81,7 +81,7 @@ mixin VMAnchoredTUMixin on VMNodeTranslationUnit{
 abstract class VMNodeTranslationUnit extends NodeTranslationUnit{
 
   //Stack position is calculated per scope
-  int stackPosition = 0;
+  int? stackPosition;
 
   bool CanHandleEOF() =>false;
 
@@ -104,10 +104,7 @@ class VMGraphScope{
     assert(FindVisitedNode(which) == null);
 
     var tu = which.CreateTranslationUnit() as VMNodeTranslationUnit;
-    if(tu is! VMAnchoredTUMixin) {
-      tu.stackPosition = GetCurrentStackUsage();
-      stackUsage += tu.ReportStackUsage();
-    }
+
     visitedNodes[which] = tu;
     return tu;
   }
@@ -194,6 +191,34 @@ class VMGraphCompileContext extends GraphCompileContext{
     ])..debugInfo = "Exit scope");
   }
 
+  void _AssignStackPosition(VMNodeTranslationUnit tu){
+    if(tu is! VMAnchoredTUMixin) {
+      assert(tu.stackPosition == null, "Can't reassign stack space!");
+      tu.stackPosition = currentScope.GetCurrentStackUsage();
+      currentScope.stackUsage += tu.ReportStackUsage();
+    }
+  }
+
+
+  void AssignStackPosition(){
+    _AssignStackPosition(currentTU);
+  }
+
+  void ArrangeValueDependencies(
+    List<ValueInSlotInfo> deps
+  ){
+    var nodes = [];
+    for(int i = 0; i < deps.length; i++){
+      var link = deps[i].link;
+      if(link == null)
+        ReportError("input ${deps[i].name} is empty");
+      nodes.add(link!.from.node);
+    }
+
+    if(hasErr) return;
+
+  }
+
   //Returns stack position counted from entry
   int AddValueDependency(CodeGraphNode from, int idx){
     //if(hasErr) return;
@@ -207,6 +232,9 @@ class VMGraphCompileContext extends GraphCompileContext{
       }
       //Not visited, translate node
       visited = TranslateNode(from);
+      if(visited.stackPosition == null) {
+        _AssignStackPosition(visited);
+      }
       //Getter to filter which item we want
       // var retGetter = RetGetterCB(retCnt, idx);
       // retGetter.debugInfo = 'Read ${from.displayName}.${idx}';
@@ -216,7 +244,8 @@ class VMGraphCompileContext extends GraphCompileContext{
     if(visited is VMAnchoredTUMixin){
       return (visited as VMAnchoredTUMixin).anchoredPosition + idx;
     }
-    return visited.stackPosition + idx;
+    assert(visited.stackPosition != null, "Stack position not assigned.");
+    return visited.stackPosition! + idx;
   }
 
   //Explicitly executed nodes output value as-is, The stack base vm ensures
@@ -314,9 +343,9 @@ class VMGraphCompiler{
 
   bool hasError = true;
 
-  int reservedSpace;
+  int argCnt, retCnt;
 
-  VMGraphCompiler.compile(CodeGraphNode entry, [this.reservedSpace = 0]){
+  VMGraphCompiler.compile(CodeGraphNode entry, this.argCnt, this.retCnt){
     Compile(entry);
   }
 
@@ -326,13 +355,14 @@ class VMGraphCompiler{
     //uses back-to-front order, to avoid overlapping, we needs
     //to "pad" the size differences between return count and
     //argument count
-    if(reservedSpace > 0) {
+    int deltaSpace = max(0, (retCnt - argCnt));
+    if(deltaSpace > 0) {
       compiled = [
-        InstLine(OpCode.PUSH, i:reservedSpace)
+        InstLine(OpCode.PUSH, i:deltaSpace)
       ];
     }
 
-    var ctx = VMGraphCompileContext(reservedSpace);
+    var ctx = VMGraphCompileContext(argCnt + deltaSpace);
 
     ctx.TranslateNode(root);
 
@@ -567,8 +597,7 @@ List _CompileMethod(CodeMethod m,VMMethodAnalyzer analyzer){
     null,
     "Method ${m.fullName} doesn't have a body"
   ];
-  var reservedSpace = max(0, (m.rets.length - m.args.length));
-  var cpResult = VMGraphCompiler.compile(m.root!, reservedSpace);
+  var cpResult = VMGraphCompiler.compile(m.root!, m.args.length, m.rets.length);
   m.nodeMessage = Map.from(cpResult.errors);
   if(cpResult.hasError) return [
     null,
