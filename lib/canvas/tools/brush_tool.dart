@@ -1,5 +1,6 @@
 
 
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -12,6 +13,7 @@ import 'package:infcanvas/canvas/tools/infcanvas_viewer.dart';
 import 'package:infcanvas/utilities/async/task_guards.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 import 'package:infcanvas/widgets/functional/floating.dart';
+import 'package:infcanvas/widgets/functional/multi_drag.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
 import 'package:reorderables/reorderables.dart';
 
@@ -63,61 +65,14 @@ class CVPainter extends CustomPainter{
 }
 
 
-
 class BrushInputOverlay extends ToolOverlayEntry{
 
   final BrushTool tool;
-  final cvKey = GlobalKey(debugLabel:"CanvasPainter");
-
-  ui.Image? img;
-  Offset off = Offset.zero;
-
-  void _DrawSnapshot(ui.Image img, Offset off){
-    this.img = img; this.off = off;
-    manager.Repaint();
-  }
 
   BrushInputOverlay(this.tool);
 
-  @override
-  Widget BuildContent(BuildContext ctx) {
-    if(img == null){
-      WidgetsBinding.instance!.addPostFrameCallback(
-              (timeStamp) {_UpdateSnapshot(); }
-      );
-    }
-    return AnchoredPosition.fill(
-        child: NotificationListener<SizeChangedLayoutNotification>(
-          onNotification: _OnResize,
-          child: SizeChangedLayoutNotifier(
-            child: CustomPaint(
-              key: cvKey,
-              painter: CVPainter(img,off),
-            ),
-          ),
-        )
-    );
-  }
-
   @override AcceptPointerInput(p){
     return tool.AcceptPointer(p);
-  }
-
-  void _UpdateSnapshot() {
-    double w = 0, h = 0;
-    final keyContext = cvKey.currentContext;
-    if (keyContext != null) {
-      // widget is visible
-      final box = keyContext.findRenderObject() as RenderBox;
-      w = box.size.width;
-      h = box.size.height;
-    }
-    tool._RequestGenerateSnapshot(Size(w, h));
-  }
-
-  bool _OnResize(SizeChangedLayoutNotification e){
-    _UpdateSnapshot();
-    return true;
   }
 
 }
@@ -131,294 +86,6 @@ class _LayerThumbPainter extends CustomPainter{
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => true;
 
-}
-
-class _LayerEntry extends StatefulWidget{
-
-  final ui.PaintLayer layer;
-  final BrushTool tool;
-
-  _LayerEntry(Key key, this.layer, this.tool):super(key: key);
-
-  @override
-  _LayerEntryState createState() => _LayerEntryState();
-}
-
-class _LayerEntryState extends State<_LayerEntry> {
-
-  BrushTool get tool => widget.tool;
-  bool get isActive=> widget.layer == tool.activePaintLayer;
-  double alpha = 0.5;
-
-  late final _menu = CustomMenuPage(
-      name: 'Layer Menu',
-      builder: (bctx, mctx){
-        return SizedBox(
-          width: 200,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.only(left:8.0, top:4, bottom:4, right:4),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<BlendMode>(
-                        value: widget.layer.blendMode,
-                        isDense: true,
-                        isExpanded: true,
-                        onChanged: (BlendMode? newValue) {
-                          setState(() {
-                            widget.layer.blendMode = newValue??BlendMode.srcOver;
-                            _NotifyOverlayUpdate();
-                          });
-                        },
-                        items: BlendMode.values.map((BlendMode classType) {
-                          return DropdownMenuItem<BlendMode>(
-                              value: classType,
-                              child: Text(classType.toString().split('.').last,));
-                        }).toList()
-                    ),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  Text("Alpha"),
-                  Expanded(
-                    child: Slider(
-                      label: "Alpha",
-                      value: alpha,
-                      onChanged: (val){
-                        alpha = val;
-                        _NotifyOverlayUpdate();
-                        mctx.Repaint();
-                      },
-                    ),
-                  ),
-                  Text(alpha.toStringAsFixed(2))
-                ],
-              ),
-              Divider(),
-              Center(
-                child: Wrap(
-                  spacing: 4,
-                  runSpacing: 8,
-                  children: [
-                    MenuActionButton(
-                        icon: Icons.get_app,
-                        label: "Merge",
-                        onPressed: (){mctx.Close();}
-                    ),
-                    MenuActionButton(
-                        icon: Icons.copy,
-                        label: "Duplicate",
-                        onPressed: (){mctx.Close();}
-                    ),
-
-                  ],
-                ),
-              ),
-              Divider(),
-              ElevatedButton(
-                  style: ElevatedButton.styleFrom(primary: Colors.red),
-                  onPressed: ()async{
-                    await mctx.Close();
-                    widget.layer.Remove();
-                    _NotifyOverlayUpdate();
-                    _NotifyParentUpdate();
-
-                  }, child: Text("Remove")
-              ),
-            ],
-          ),
-        );
-      }
-  );
-
-  @override
-  Widget build(BuildContext context) {
-
-    BoxDecoration border = BoxDecoration(
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: isActive?
-          Theme.of(context).primaryColor:
-          Theme.of(context).highlightColor,
-          width: 2,
-        )
-    );
-    return MenuButton(
-        _menu,
-            (ctx, showFn) {
-          return Padding(
-            padding: const EdgeInsets.all(4.0),
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: border,
-              //color: (isActive?Theme.of(context).primaryColor.withOpacity(0.5):null),
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () {
-                  if (isActive) {
-                    showFn();
-                  }
-                  else {
-                    tool.activePaintLayer = widget.layer;
-                    _NotifyParentUpdate();
-                  }
-                },
-                child: ClipRect(
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 0, right: 0,
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: TextButton(
-                              child: Icon(
-                                widget.layer.isEnabled ? Icons.lock_open : Icons
-                                    .lock,
-                                size: 18,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  widget.layer.isEnabled =
-                                  !widget.layer.isEnabled;
-                                });
-                              }
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0, right: 0,
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: TextButton(
-                              child: Icon(
-                                widget.layer.isVisible ? Icons.visibility : Icons
-                                    .visibility_off_outlined,
-                                size: 18,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  widget.layer.isVisible =
-                                  !widget.layer.isVisible;
-                                  _NotifyOverlayUpdate();
-                                });
-                              }
-                          ),
-                        ),
-                      ),
-                      Positioned.fill(
-                          child: CustomPaint(painter: _LayerThumbPainter(),)
-                      )
-                    ],
-
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-    );
-  }
-
-  void _NotifyParentUpdate(){
-    var state = context.findAncestorStateOfType<_LayerManagerWidgetState>();
-    state?.setState(() {});
-  }
-
-  void _NotifyOverlayUpdate(){
-    tool.NotifyOverlayUpdate();
-  }
-}
-
-class LayerManagerWidget extends StatefulWidget {
-
-  final BrushTool tool;
-
-  const LayerManagerWidget({Key? key,required this.tool}) : super(key: key);
-
-  @override
-  _LayerManagerWidgetState createState() => _LayerManagerWidgetState();
-}
-
-class _LayerManagerWidgetState extends State<LayerManagerWidget> {
-
-  BrushTool get tool => widget.tool;
-
-  @override
-  Widget build(BuildContext context) {
-    var layers = widget.tool.cvInstance.layers;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: 100,
-            maxWidth: 100,
-            minHeight: 100,
-            maxHeight: 400,
-          ),
-          child: Scrollbar(
-            child: ReorderableColumn(
-                onReorder: (oldIndex, newIndex) {
-                  if(oldIndex == newIndex) return;
-
-                  //if(newIndex > oldIndex){
-                  //  newIndex -= 1;
-                  //}
-                  widget.tool.cvInstance.layers[oldIndex].MoveTo(newIndex);
-                  setState((){});
-                },
-                children: <Widget>[
-                  for(int i = 0; i < layers.length; i++)
-                    _LayerEntry(Key("_layerman_entry_#${i}"),layers[i],tool),
-
-                ]
-            ),
-          ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextButton(onPressed: (){
-                widget.tool.cvInstance.CreateNewPaintLayer();
-                setState((){});
-              }, child: Icon(Icons.add)),
-            )
-          ],
-        )
-      ],
-    );
-  }
-}
-
-
-class BrushManagerWindow extends ToolWindow{
-  final BrushTool tool;
-
-  BrushManagerWindow(this.tool){
-  }
-
-  @override BuildContent(BuildContext context){
-    var layers = tool.cvInstance.layers;
-    return IntrinsicWidth(
-      child:CreateDefaultLayout(
-        LayerManagerWidget(tool:tool),
-        title: "Layers",
-      ),
-    );
-  }
-
-  @override OnRemove(){
-    return super.OnRemove();
-  }
 }
 
 class BrushSideBar extends SideBar{
@@ -451,11 +118,17 @@ class BrushSideBar extends SideBar{
 class BrushTool extends CanvasTool{
   @override get displayName => "BrushTool";
 
+  late final MenuAction _menuAction;
+
   @override OnInit(mgr){
     mgr.overlayManager.RegisterOverlayEntry(_overlay, 1);
-    mgr.menuBarManager.RegisterAction(
-        MenuPath(name:"Brush"), () {
-        ActivateTool();
+    _menuAction = mgr.menuBarManager.RegisterAction(
+      MenuPath(name:"Brush"),
+      () {
+        if(isActive)
+          DeactivateTool();
+        else
+          ActivateTool();
       }
     );
   }
@@ -465,12 +138,14 @@ class BrushTool extends CanvasTool{
 
   bool isActive = false;
   void ActivateTool(){
+    _menuAction.isEnabled = true;
     manager.overlayManager.RegisterOverlayEntry(_overlay, 1);
     manager.sideBarManager.ShowSideBar(_sidebar);
     isActive = true;
   }
 
   void DeactivateTool(){
+    _menuAction.isEnabled = false;
     isActive = false;
   }
 
@@ -478,33 +153,74 @@ class BrushTool extends CanvasTool{
   late final _sidebar = BrushSideBar(this);
 
   ui.BrushInstance _brush = ui.BrushInstance();
+  ui.PipelineDesc? _currBrush;
 
-  ui.InfCanvasInstance get cvInstance => _cvInstance;
-  set cvInstance(ui.InfCanvasInstance val){
-    var old = _cvInstance;
-    _cvInstance = val;
+  bool get isBrushValid => _brush.isValid;
+
+  ui.PipelineDesc? get currentBrush => _currBrush;
+  set currentBrush(ui.PipelineDesc? val){
+    var old = _currBrush;
+    _currBrush = val;
     if(old != val){
-      NotifyOverlayUpdate();
+      _brush.InstallDesc(val);
     }
   }
 
-  ui.PaintLayer? _activeLayer;
-  ui.PaintLayer? get activePaintLayer => _activeLayer;
-  set activePaintLayer(ui.PaintLayer? val){
-    _activeLayer = val;
-  }
-
-
   CanvasParam get canvasParam => cvTool.canvasParam;
 
+  Size brushSize = Size(50,50);
+  double brushOpacity = 1.0;
 
-  late final _brushGR = PanGestureRecognizer()
-    ..onUpdate = _OnPanUpdate
+  Offset ScreenToLocal(Offset pos){
+    var overlaySize = manager.overlayManager.overlaySize;
+    return pos - overlaySize.center(Offset.zero);
+  }
+
+  Offset GetWorldPos(Offset overlayPos){
+    var centered = ScreenToLocal(overlayPos);
+    var canvasCenterPos = canvasParam.offset;
+    var canvasLod = canvasParam.lod;
+    var cx = canvasCenterPos.positionX;
+    var cy = canvasCenterPos.positionY;
+    double scale = pow(2.0, -canvasLod) as double;
+    return (Offset(cx, cy) + centered) * scale;
+  }
+
+  late final _brushGR = DetailedMultiDragGestureRecognizer<ui.PaintObject>()
+    ..onDragStart = _OnDragStart
+    ..onDragUpdate = _OnDragUpdate
+    ..onDragEnd = (d, o)=>_OnDragFinished(o)
+    ..onDragCancel = _OnDragFinished
   ;
 
-  _OnPanUpdate(DragUpdateDetails d){
-    var delta = d.delta;
-    Translate(-delta);
+  ui.PaintObject? _OnDragStart(DetailedDragEvent<PointerDownEvent> d){
+    if(!_brush.isValid) return null;
+    var p = d.pointerEvent;
+    var worldPos = GetWorldPos(p.localPosition);
+    var po = _brush.NewStroke(worldPos, colorTool.currentColor);
+    return po;
+  }
+
+  _OnDragUpdate(DetailedDragUpdate d, ui.PaintObject? o){
+    if(o == null) return;
+    var p = d.pointerEvent;
+    var delta = p.delta;
+    var velocity = d.velocity.pixelsPerSecond;
+    var pressure = (p.pressure - p.pressureMin)/(p.pressureMax - p.pressureMin);
+    var brushPipe = o!.Update(
+      brushSize, 
+      GetWorldPos(p.localPosition), 
+      colorTool.currentColor, 
+      brushOpacity,
+      velocity,
+      Offset(0,p.tilt), 
+      pressure
+    );
+  }
+
+  _OnDragFinished(ui.PaintObject? o){
+    if(o == null) return;
+    o!.Dispose();
   }
 
 

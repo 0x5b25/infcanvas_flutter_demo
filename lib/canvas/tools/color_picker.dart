@@ -7,9 +7,10 @@ import 'package:infcanvas/widgets/tool_window/color_picker.dart';
 
 class ColorPickerWindow extends ToolWindow{
 
-  ColorPickerController ctrl;
+  ColorPicker tool;
+  ColorPickerController get ctrl => tool._ctrl;
 
-  ColorPickerWindow(this.ctrl);
+  ColorPickerWindow(this.tool);
 
   @override
   Widget BuildContent(ctx){
@@ -22,24 +23,40 @@ class ColorPickerWindow extends ToolWindow{
     );
   }
 
+  @override Future<void> OnRemove() {
+    tool._OnWndClose();
+    return super.OnRemove();
+  }
+
 }
 
 class ColorPicker extends CanvasTool{
   @override get displayName => "ColorPicker";
 
   late final _ctrl = ColorPickerController();
-  late final _window = ColorPickerWindow(_ctrl);
+  late final _window = ColorPickerWindow(this);
 
   Color get currentColor => _ctrl.color;
   Color get previousColor => _ctrl.previousColor;
 
   void NotifyColorUsed() => _ctrl.NotifyColorUsed();
 
+  late final MenuAction _showAction;
+
   @override OnInit(mgr){
-    mgr.menuBarManager.RegisterAction(
+    _showAction = mgr.menuBarManager.RegisterAction(
       MenuPath(name:"Color"),
-      () { mgr.windowManager.ShowWindow(_window);}
+      _ShowWnd
     );
+  }
+
+  void _ShowWnd(){
+    _showAction.isEnabled = true;
+    manager.windowManager.ShowWindow(_window);
+  }
+
+  void _OnWndClose(){
+    _showAction.isEnabled = false;
   }
 
 }

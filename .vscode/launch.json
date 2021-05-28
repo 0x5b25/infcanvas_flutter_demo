@@ -14,15 +14,9 @@
             "request": "launch",
             "flutterMode": "debug",
             "type": "dart",
-            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
+            "args": ["--local-engine=host_debug", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
             "justMyCode":false
         },
-        {
-            "name": "Flutter Attach",
-            "request": "attach",
-            "type": "dart",
-            "vmServiceUri": "http://127.0.0.1:57616/0fWWEa_GfdA=/",
-            "args": ["--local-engine=host_debug_unopt", "--local-engine-src-path", "D:/google/dev/flutter/engine/src"]
-        }
+        
     ]
 }

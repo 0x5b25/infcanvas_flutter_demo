@@ -205,7 +205,7 @@ abstract class ToolOverlayEntry{
 
   bool AcceptPointerInput(PointerDownEvent e) => false;
 
-  Widget BuildContent(BuildContext ctx);
+  Widget? BuildContent(BuildContext ctx){}
 
   void OnClose(){}
 
@@ -381,6 +381,13 @@ class ToolOverlayManager extends WidgetController<ToolOverlayView>{
     //RegisterOverlayEntry(CustomPainterTest(), 2);
   }
 
+  Size get overlaySize{
+    if(!isInstalled) return Size.zero;
+    var s = state;
+    var ro = s.context.findRenderObject() as RenderBox?;
+    return ro?.size??Size.zero;
+  }
+
   void RoutePointer(PointerDownEvent e) {
     //Route pointer from top to bottom
     for(var o in overlay.reversed){
@@ -456,7 +463,8 @@ class _ToolOverlayViewState extends ControlledWidgetState<ToolOverlayView> {
   _BuildOverlay() sync* {
     for(var entry in manager.overlay){
       if(entry == null) continue;
-      yield entry.BuildContent(context);
+      var wid = entry.BuildContent(context);
+      if(wid!=null) yield wid;
     }
   }
 
@@ -891,6 +899,7 @@ class _MenuButtonState extends State<MenuButton> {
   void _ShowPopup(){
     var mgr = ToolViewManager.of(context);
     assert(mgr != null, "Widget should be placed inside a ToolView");
+    widget.menuEntry.isEnabled = true;
     mgr!.popupManager.ShowPopup(pConfig);
   }
 
@@ -901,6 +910,7 @@ class _MenuButtonState extends State<MenuButton> {
   Widget _BuildButton(){
     _PerformAct(){
       widget.menuEntry.PerformAction(pCtrl);
+      setState((){});
     }
     if(widget.buttonBuilder != null){
       return widget.buttonBuilder!(context, _PerformAct);
@@ -923,7 +933,9 @@ class _MenuButtonState extends State<MenuButton> {
     };
     pConfig.onRemove = ()async{
       pCtrl.NotifyCloseAll();
+      widget.menuEntry.isEnabled = false;
       await closeNotifier.NotifyClose();
+      setState((){});
     };
   }
 
@@ -945,6 +957,19 @@ class _MenuButtonState extends State<MenuButton> {
 class MenuContentBase{
   String name;
   IconData? ico;
+  bool _isEnabled = false;
+  bool get isEnabled => _isEnabled;
+  set isEnabled(bool val) {
+    if(val == _isEnabled) return;
+    _isEnabled = val;
+    Repaint();
+  }
+
+  Function()? _repaintFn;
+
+  void Repaint(){
+    _repaintFn?.call();
+  }
 
   MenuContentBase({
     required this.name,
@@ -1011,13 +1036,22 @@ class SubMenu extends MenuPage{
     IconData? ico,
   }) : super(name: name, ico: ico);
 
-  Widget _BuildEntry(MenuContentBase entry, MenuContext ctx){
-    return MenuActionButton(
-      icon: entry.ico??Icons.all_inclusive,
-      label: entry.name,
-      onPressed: (){
-        entry.PerformAction(ctx);
-      },
+  Widget _BuildEntry(
+    MenuContentBase entry,
+    MenuContext mctx,
+    BuildContext bctx,
+  ){
+    entry._repaintFn = mctx.Repaint;
+    var color = _MenuBarState.BackgroundColor(entry.isEnabled, bctx);
+    return Container(
+      color: color,
+      child: MenuActionButton(
+        icon: entry.ico??Icons.all_inclusive,
+        label: entry.name,
+        onPressed: (){
+          entry.PerformAction(mctx);
+        },
+      ),
     );
   }
 
@@ -1026,7 +1060,7 @@ class SubMenu extends MenuPage{
       child: Wrap(
         runSpacing: 10,
         children: [
-          for(var i in items) _BuildEntry(i, mctx)
+          for(var i in items) _BuildEntry(i, mctx, bctx)
         ],
       ),
     );
@@ -1103,7 +1137,9 @@ class MenuPath{
 }
 
 class MenuBarManager extends WidgetController<MenuBar>{
-  final root = SubMenu(name: "Menu");
+  late final root = SubMenu(name: "Menu")
+    .._repaintFn = Repaint
+    ;
 
   List<MenuContentBase> quickAccess = [];
 
@@ -1154,6 +1190,9 @@ class MenuBarManager extends WidgetController<MenuBar>{
   void AddToPath(MenuPath? path, MenuContentBase item){
 
     SubMenu? parentSeg = FindSubMenu(path);
+    if(parentSeg == null){
+      item._repaintFn = Repaint;
+    }
     var itemList = parentSeg?.items??quickAccess;
 
     itemList.removeWhere((e) => e.name == item.name);
@@ -1181,20 +1220,22 @@ class MenuBarManager extends WidgetController<MenuBar>{
     return[mainPath, itemSeg];
   }
 
-  void RegisterAction(MenuPath path, void Function() action){
+  MenuAction RegisterAction(MenuPath path, void Function() action){
     var split = _SplitPath(path);
     var mp = split.first;
     var ip = split.last;
     var mi = MenuAction(name: ip.name, ico:ip.ico, action: action);
     AddToPath(mp, mi);
+    return mi;
   }
 
-  void RegisterPage(MenuPath path, Widget Function(BuildContext, MenuContext) builder){
+  CustomMenuPage RegisterPage(MenuPath path, Widget Function(BuildContext, MenuContext) builder){
     var split = _SplitPath(path);
     var mp = split.first;
     var ip = split.last;
     var mi = CustomMenuPage(name: ip.name, ico:ip.ico, builder: builder);
     AddToPath(mp, mi);
+    return mi;
   }
 
 }
@@ -1217,12 +1258,21 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
 
   MenuBarManager get manager => widget.controller;
 
+  static Color BackgroundColor(bool isEnabled, BuildContext ctx){
+    return isEnabled?
+      Theme.of(ctx).primaryColor.withOpacity(0.5)
+      :Color.fromRGBO(0, 0, 0, 0);
+  }
+
   Iterable<Widget> _BuildQuickAccess()sync*{
     for(var c in manager.quickAccess){
       yield MenuButton(c, (ctx, showFn){
-        return TextButton(
+        return Container(
+          color: BackgroundColor(manager.root.isEnabled, context),
+          child: TextButton(
             child: Text(c.name.toUpperCase()),
             onPressed: showFn,
+          ),
         );
       }, PopupDirection.bottom);
     }
@@ -1230,11 +1280,12 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
 
   Widget _BuildMenu(){
     return MenuButton(manager.root, (ctx, showFn){
-      return SizedBox(
+      return Container(
         width: 30, height: 30,
+        color: BackgroundColor(manager.root.isEnabled, context),
         child: TextButton(
-            child: Icon(Icons.settings_outlined),
-            onPressed: showFn
+          child: Icon(Icons.settings_outlined),
+          onPressed: showFn
         ),
       );
     }, PopupDirection.bottom);

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
-project(infcanvas LANGUAGES CXX)
+project(infcanvas_flutter LANGUAGES CXX)
 
-set(BINARY_NAME "infcanvas")
+set(BINARY_NAME "infcanvas_flutter")
 
 cmake_policy(SET CMP0063 NEW)
 

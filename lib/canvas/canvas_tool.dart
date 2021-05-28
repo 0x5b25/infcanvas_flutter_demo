@@ -5,8 +5,6 @@ import 'dart:ffi';
 import 'package:flutter/widgets.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
 
-typedef ContentBuilder = Widget Function(BuildContext);
-typedef MenuAction = Function(ToolManager);
 
 ///There are 3 types of tool:
 /// - Main tool : can only activate one, have full control over
