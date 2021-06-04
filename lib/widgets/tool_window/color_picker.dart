@@ -6,11 +6,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 
-import '../functional/floating.dart';
 
 class ColorPickerController{
   _ColorPickerWidgetState? _state;
-  late final ValueNotifier<HSVColor> _color;
+  late final ValueNotifier<HSVColor> colorNotifier;
   late HSVColor _oldColor;
 
   ColorPickerController(
@@ -18,15 +17,23 @@ class ColorPickerController{
       HSVColor color = const HSVColor.fromAHSV(1, 0, 0, 0)
     }
   ){
-    _color = ValueNotifier(color);
+    colorNotifier = ValueNotifier(color);
     _oldColor = color;
   }
 
   Color get previousColor => _oldColor.toColor();
-  Color get color => _color.value.toColor();
-  set color(Color c) => _color.value = HSVColor.fromColor(c);
+  Color get color => colorNotifier.value.toColor();
+  set color(Color c) => colorNotifier.value = HSVColor.fromColor(c);
 
-  void NotifyColorUsed(){_state?.MarkNewColorUsed();}
+  void NotifyColorUsed(){
+    _oldColor = colorNotifier.value;
+    _state?.MarkNewColorUsed();
+  }
+
+  void Dispose(){
+    _state = null;
+    colorNotifier.dispose();
+  }
     
 }
   
@@ -49,6 +56,21 @@ class ColorPickerWidget extends StatefulWidget{
   
 class _ColorPickerWidgetState extends State<ColorPickerWidget> {
 
+  @override void initState() {
+    super.initState();
+    widget.ctrl._state = this;
+  }
+
+  @override didUpdateWidget(oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    oldWidget.ctrl._state = null;
+    widget.ctrl._state = this;
+  }
+
+  @override dispose(){
+    super.dispose();
+    widget.ctrl._state = null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +87,7 @@ class _ColorPickerWidgetState extends State<ColorPickerWidget> {
               width: 60,
               child: ColorDiffBox(
                 oldColor: widget.ctrl._oldColor,
-                newColor: widget.ctrl._color,
+                newColor: widget.ctrl.colorNotifier,
               ),
             ),
           ),
@@ -74,16 +96,18 @@ class _ColorPickerWidgetState extends State<ColorPickerWidget> {
           padding: const EdgeInsets.all(3.0),
           child: AspectRatio(
             aspectRatio: 1,
-            child: HSVColorPickerWheel(color: widget.ctrl._color, wheelWidth: 15,),
+            child: HSVColorPickerWheel(color: widget.ctrl.colorNotifier, wheelWidth: 15,),
           ),
         ),
-        ColorIndicator(color: widget.ctrl._color,)
+        ColorIndicator(color: widget.ctrl.colorNotifier,)
       ],
     );
   }
 
   void MarkNewColorUsed() {
-    
+    setState(() {
+      
+    });
   }
 }
 
@@ -231,22 +255,24 @@ class ColorDiffBox extends StatelessWidget {
   }
 }
 
-class ColorDiffPainter extends CustomPainter{
-
-  static final ChessboardShaderProg = ui.ShaderProgram(
-      '''
+final ChessboardShaderProg = ui.ShaderProgram(
+    '''
 half4 main(float2 p) {
 
   float2 cycle = fract(p / 10);
   bool cycleX = cycle.x < 0.5;
   bool cycleY = cycle.y < 0.5;
 
-  float3 c = (cycleX == cycleY)?float3(1):float3(0.3);
+  float3 c = (cycleX == cycleY)?float3(0.8):float3(0.4);
 
   return half4(c.xyz, 1.0);
 }
       '''
-  );
+);
+
+class ColorDiffPainter extends CustomPainter{
+
+
   
   
   final ValueNotifier<HSVColor> color;

@@ -15,21 +15,16 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:infcanvas/canvas/canvas_widget.dart';
-import 'package:infcanvas/scripting/editor/vm_types.dart';
-import 'package:infcanvas/widgets/functional/anchor_stack.dart';
+import 'package:infcanvas/utilities/storage/app_model.dart';
 import 'package:infcanvas/scripting/brush_editor.dart';
 
-import 'package:infcanvas/widgets/functional/floating.dart';
-import 'package:infcanvas/scripting/codepage.dart';
+import 'package:infcanvas/widgets/visual/loading_page.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-
   runApp(new MyApp());
-
 }
 
 
@@ -99,8 +94,31 @@ class _MyHomePageState extends State<MyHomePage> {
 
   
   //InfCanvasController cvCtrl = InfCanvasController();
-  GlobalKey fwPanelKey = GlobalKey();
-  
+  //GlobalKey fwPanelKey = GlobalKey();
+  AppModel _model = AppModel();
+  bool isInitialized = false;
+
+  //Trigger repaint for frame debuggers
+  late Timer timer;
+
+  @override initState(){
+    super.initState();
+    _model.Load().then((value){
+      isInitialized = true;
+      setState(() {});
+    });
+    //timer = Timer.periodic(Duration(milliseconds: 100), (_){
+    //  setState(() {
+//
+    //  });
+    //});
+  }
+
+  @override dispose(){
+    super.dispose();
+    _model.SaveAll();
+    //timer.cancel();
+  }
 
   _MyHomePageState(){    
 
@@ -227,7 +245,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
  */
   @override build(ctx){
-    return CanvasWidget();
+    return Provider.value(
+      value: _model,
+      child:isInitialized?CanvasWidget():LoadingPage()
+    );
   }
 }
 

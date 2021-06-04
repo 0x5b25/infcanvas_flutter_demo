@@ -4,10 +4,10 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:file_selector/file_selector.dart';
+import 'package:infcanvas/scripting/code_element.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:infcanvas/scripting/editor/vm_opcodes.dart';
-import 'package:infcanvas/scripting/graph_compiler.dart';
 import 'package:infcanvas/scripting/brush_serializer.dart';
 import 'package:infcanvas/scripting/editor/codemodel.dart';
 import 'package:infcanvas/scripting/editor/vm_compiler.dart';
@@ -227,6 +227,8 @@ class GNBrushPipelineAddStage extends CodeGraphNode
 class BrushEditorEnv extends VMEditorEnv{
 
   //VMEditorEnv brushDeps = VMEditorEnv();
+  //Redirect shader editing events
+  final _shaderOb = Observer("ob_brush_shader");
 
   CodeLibrary? get egLib => _brushData?.progLib;
   CodeType? get egType => _brushData?.progClass;
@@ -242,6 +244,7 @@ class BrushEditorEnv extends VMEditorEnv{
 
   _Unload(){
     Clear();
+    _shaderOb.Clear();
     //brushDeps.Clear();
     _brushData = null;
   }
@@ -249,6 +252,12 @@ class BrushEditorEnv extends VMEditorEnv{
   _Load(BrushData data){
     _brushData = data;
     LoadLib(data.progLib);
+    //Redirect shader events
+    _shaderOb.Watch<CodeElementChangeEvent>(
+      _brushData!.shaderLib, (evt) {
+        SendEvent(AnalyzerEvent(evt));
+      }
+    );
     //for(var d in data.deps){
     //  brushDeps.LoadLib(d);
     //}
@@ -516,8 +525,9 @@ class BrushData {
 class BrushEditor extends StatefulWidget{
 
   final BrushData data;
+  final Function(AnalyzerEvent)? onChange;
 
-  BrushEditor(this.data);
+  BrushEditor(this.data, [this.onChange]);
 
   @override
   State<StatefulWidget> createState() => _BrushEditorState();
@@ -527,10 +537,14 @@ class BrushEditor extends StatefulWidget{
 class _BrushEditorState extends State<BrushEditor>{
 
   final BrushEditorEnv env = BrushEditorEnv();
+  final _ob = Observer("ob_brushDataChange");
 
   @override initState(){
     super.initState();
     env.brushData = widget.data;
+    _ob.Watch<AnalyzerEvent>(env, (evt) {
+      widget.onChange?.call(evt);
+    });
   }
 
   @override void didUpdateWidget(BrushEditor oldWidget) {
@@ -547,6 +561,33 @@ class _BrushEditorState extends State<BrushEditor>{
 
   @override
   Widget build(BuildContext context) {
+
+    _BuildActionButton(icon, label, fn, [elevated = false]){
+      var content = SizedBox(
+        width: 100,
+        child:Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Icon(icon),
+          ),
+          Text(label),
+        ],
+      ));
+      var button = elevated?
+        ElevatedButton(
+          onPressed: fn, child: content,
+          style: ElevatedButton.styleFrom(padding: EdgeInsets.all(4)),
+        ):
+        TextButton(
+          onPressed: fn, child: content,
+          style: TextButton.styleFrom(padding: EdgeInsets.all(4)),
+        );
+      return Padding(padding: EdgeInsets.all(10),child: button,);
+
+    }
+
     return Material(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -566,32 +607,47 @@ class _BrushEditorState extends State<BrushEditor>{
               )
             ],
           ),
-
-          ElevatedButton(
-            onPressed:ShowEventGraphEditor, 
-            child: Text("Edit Event Graph")
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Column(
+                  children: [
+                    _BuildActionButton(
+                      Icons.alt_route,
+                      "Event Graph",
+                      ShowEventGraphEditor, 
+                    ),
+                    _BuildActionButton(
+                      Icons.color_lens,
+                      "Shaders",
+                      ShowShaderGraphEditor,
+                    ),
+                    _BuildActionButton(
+                      Icons.storage,
+                      "Dependencies",
+                      ShowVMGraphEditor,
+                    ),
+                    Spacer(),
+                    _BuildActionButton(
+                      Icons.save_alt_sharp,
+                      "Export",
+                      ExportBrush,
+                    ),
+                  ],
+                ),
+                Column(
+                  children: [
+                    Text("Edit static values")
+                  ],
+                ),
+                Expanded(
+                  child: Placeholder(),
+                )
+              ],
+            ),
           ),
-          TextButton(
-            onPressed:ShowVMGraphEditor, 
-            child: Text("Edit Dependencies")
-          ),
-          TextButton(
-            onPressed:ShowShaderGraphEditor, 
-            child: Text("Edit Shader Library")
-          ),
-          Spacer(),
-          ElevatedButton(
-            onPressed:PackageBrush, 
-            child: Text("Package Brush")
-          ),
-          ElevatedButton(
-            onPressed:ExportBrush,
-            child: Text("Export Brush")
-          ),
-          ElevatedButton(
-              onPressed:ImportBrush,
-              child: Text("Import Brush")
-          ),
+          
         ],
       ),
     );

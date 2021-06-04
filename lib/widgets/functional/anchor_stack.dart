@@ -256,12 +256,12 @@ class AnchoredPosition extends ParentDataWidget<ASParentData>{
       needsLayout = true;
     }
 
-    if(parentData.onPositioning != onPositioning && onPositioning != null){
+    if(parentData.onPositioning != onPositioning){
       parentData.onPositioning = onPositioning;
       needsLayout = true;
     }
 
-    if(parentData.onSizing != onSizing && onSizing != null){
+    if(parentData.onSizing != onSizing){
       parentData.onSizing = onSizing;
       needsLayout = true;
     }

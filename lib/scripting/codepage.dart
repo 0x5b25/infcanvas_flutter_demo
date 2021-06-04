@@ -291,6 +291,7 @@ class _CodePageState extends State<CodePage> {
               DFWController()
                 ..dx = d.localPosition.dx
                 ..dy = d.localPosition.dy
+                //..layoutBehavior = null
                 ,
               null,null);
           },
@@ -433,11 +434,14 @@ class _CodePageState extends State<CodePage> {
       var slot = to!.CreateCounterpart();
       if(slot == null) return null;
       hndl = HandleNode(to!, slot);
+      slot.node = hndl;
     }else{
       var slot = from!.CreateCounterpart();
       if(slot == null) return null;
       hndl = HandleNode(from!, slot);
+      slot.node = hndl;
     }
+
     widget.data.OnCodeChange();
     widget.onChange?.call();
     //codeLinks.add(link);
@@ -638,7 +642,7 @@ class NodeSelPopup extends StatelessWidget{
   late Iterable<GraphNodeQueryResult> availNodes;
 
   NodeSelPopup(this.ctrl, this.slot, this.availNodes, this.onSelect){
-    ctrl.layoutBehavior = PositioningBehavior.StopAtEdge;
+    //ctrl.layoutBehavior = PositioningBehavior.StopAtEdge;
   }
 
   @override
@@ -743,7 +747,9 @@ class PNode extends StatefulWidget {
   DrawableNodeMixin drawableNode;
   GeometryTrackHandle ghandle;
 
-  PNode(this.drawableNode, this.ghandle):super(key: drawableNode.key);
+  PNode(this.drawableNode, this.ghandle):super(key: drawableNode.key){
+    assert(drawableNode.ctrl.layoutBehavior == null);
+  }
 
   @override
   _PNodeState createState() => _PNodeState();

@@ -1,4 +1,5 @@
 
+import 'package:infcanvas/scripting/codepage.dart';
 import 'package:infcanvas/scripting/script_graph.dart';
 
 class LinkNotation{
@@ -38,6 +39,7 @@ List<LinkNotation> SerializeLink(List<GraphNode> nodes){
       for(var l in lnks){
         var rearSlot = l.to;
         var rearNode = rearSlot.node;
+        if(rearNode is HandleNode) continue;
         int rearNodeIdx = _NodeIdx(rearNode);
         int rearSlotIdx = _ElemIdx(rearSlot, rearNode.inSlot);
 

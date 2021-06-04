@@ -201,7 +201,15 @@ class FloatingWindowPanelState extends State<FloatingWindowPanel> {
 
 
 
-Widget BuildDefaultWindowContent(Widget? child){
+Widget BuildDefaultWindowContent(
+  Widget? child,
+  {
+    double borderRadius = 4,
+    Color background = Colors.white,
+    double backgroundOpacity = 0.6,
+    double backgroundBlur = 50,
+  }
+){
   return Container(
     decoration: BoxDecoration(
         boxShadow: <BoxShadow>[
@@ -213,15 +221,15 @@ Widget BuildDefaultWindowContent(Widget? child){
         ]
     ),
     child: ClipRRect(
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(
-          sigmaX: 50.0,
-          sigmaY: 50.0,
+          sigmaX: backgroundBlur,
+          sigmaY: backgroundBlur,
           tileMode: TileMode.repeated,
         ),
         child: Container(
-            color: Colors.white.withOpacity(0.8),
+            color: background.withOpacity(backgroundOpacity),
 
             child: child
         ),
@@ -376,16 +384,16 @@ abstract class AnimatedClosableWidgetState<T extends AnimatedClosableWidget>
   }
 
   @override dispose(){
-    super.dispose();
     controller.dispose();
     _UnregCtrl(widget.closeNotifier);
+    super.dispose();
   }
 
   double get animProgress => widget.curve.transform(animation.value);
   bool get animFinished => animation.isCompleted || animation.isDismissed;
 }
 
-class DFWController extends AnimatedCloseNotifier{
+class DFWController extends AnimatedCloseNotifier with ChangeNotifier{
   //Positioning
   final GlobalKey _key = GlobalKey();
   double? dx, dy;
@@ -437,6 +445,7 @@ class _DFWState extends AnimatedClosableWidgetState<DraggableFloatingWindow>{
       if(ctrl.dy != null){
         ctrl.dy = ctrl.dy! + ldy;
       }
+      ctrl.notifyListeners();
     });
   }
 
@@ -533,6 +542,7 @@ class _RDFWState extends _DFWState{
 
       if(ctrl.dx != null)ctrl.dx = rx;
       if(ctrl.dy != null)ctrl.dy = ry;
+      ctrl.notifyListeners();
     });
   }
 

@@ -203,11 +203,13 @@ abstract class ToolOverlayEntry{
   }
 
 
-  bool AcceptPointerInput(PointerDownEvent e) => false;
+  bool AcceptPointerInput(PointerEvent e) => false;
 
   Widget? BuildContent(BuildContext ctx){}
 
-  void OnClose(){}
+  Widget? BuildSideBar(BuildContext ctx){}
+
+  void OnRemove(){}
 
   void Dispose(){
     if(_mgr == null) return;
@@ -237,7 +239,9 @@ class PointerOverlayTest extends ToolOverlayEntry{
     );
   }
 
-  @override bool AcceptPointerInput(PointerDownEvent e) {
+  @override bool AcceptPointerInput(PointerEvent p) {
+    if(p is! PointerDownEvent) return false;
+    var e = p as PointerDownEvent;
     if(!_gr.isPointerAllowed(e)) return false;
     _gr.addPointer(e);
     return true;
@@ -304,13 +308,20 @@ class CustomPainterTest extends ToolOverlayEntry{
 class ToolViewManager extends WidgetController<ToolView>{
   final overlayManager = ToolOverlayManager();
   final windowManager = ToolWindowManager();
-  final sideBarManager = SideBarManager();
   final popupManager = PopupManager();
   final menuBarManager = MenuBarManager();
 
   static ToolViewManager? of(BuildContext context){
     var state = context.findAncestorStateOfType<_ToolViewState>();
     return state?.manager;
+  }
+
+  @mustCallSuper
+  void Dispose(){
+    popupManager.Dispose();
+    windowManager.Dispose();
+    overlayManager.Dispose();
+    menuBarManager.Dispose();
   }
 }
 
@@ -343,16 +354,15 @@ class _ToolViewState extends ControlledWidgetState<ToolView> {
                   child: ToolOverlayView(manager: manager.overlayManager,)
               ),
 
-              if(manager.sideBarManager.topmost != null)
-                FloatingWindow(
-                    anchor: Rect.fromLTRB(0, 0, 0, 1),
-                    top: 80, bottom: -80, left: 10, width: 50,
-                    child: SideBarView(manager: manager.sideBarManager,)
-                ),
+              //AnchoredPosition(
+              //    anchor: Rect.fromLTRB(0, 0, 0, 1),
+              //    top: 80, bottom: -80, left: 10, width: 50,
+              //    child: SideBarView(manager: manager.sideBarManager,)
+              //),
 
               AnchoredPosition(
                   anchor: Rect.fromLTRB(1, 0, 1, 0),
-                  alignX: 1,
+                  alignX: 1.0,
                   child: MenuBar(manager: manager.menuBarManager,)
               ),
 
@@ -388,7 +398,7 @@ class ToolOverlayManager extends WidgetController<ToolOverlayView>{
     return ro?.size??Size.zero;
   }
 
-  void RoutePointer(PointerDownEvent e) {
+  void RoutePointer(PointerEvent e) {
     //Route pointer from top to bottom
     for(var o in overlay.reversed){
       if(o == null) continue;
@@ -404,9 +414,10 @@ class ToolOverlayManager extends WidgetController<ToolOverlayView>{
     var oldIdx = GetOverlayIndex(entry);
     if(oldIdx != null){
       overlay[oldIdx] = null;
-      entry.OnClose();
-      entry._mgr = null;
       _overlayIdx.remove(entry);
+      entry.OnRemove();
+      entry._mgr = null;
+      Repaint();
     }
   }
 
@@ -415,7 +426,7 @@ class ToolOverlayManager extends WidgetController<ToolOverlayView>{
 
     var oldEntry = overlay[slot];
     if(oldEntry == entry) return;
-    oldEntry?.OnClose();
+    oldEntry?.OnRemove();
 
     var oldIdx = GetOverlayIndex(entry);
     if(oldIdx != null){
@@ -470,6 +481,14 @@ class _ToolOverlayViewState extends ControlledWidgetState<ToolOverlayView> {
 
   @override
   Widget build(BuildContext context) {
+
+    Widget? sidebar;
+    for(var entry in manager.overlay.reversed){
+      if(entry == null) continue;
+      sidebar = entry.BuildSideBar(context);
+      if(sidebar != null) break;
+    }
+
     return AnchorStack(
       children: [
         for(var o in _BuildOverlay())
@@ -479,19 +498,33 @@ class _ToolOverlayViewState extends ControlledWidgetState<ToolOverlayView> {
             child: Listener(
               behavior: HitTestBehavior.opaque,
               onPointerDown: (e){manager.RoutePointer(e);},
+              onPointerSignal: (e){manager.RoutePointer(e);},
             )
         ),
+
+        if(sidebar != null)
+          AnchoredPosition(
+            anchor: Rect.fromLTWH(0, 0, 0, 1),
+            top:100,
+            bottom: -100,
+            width: 40,
+            left: 10,
+            child: BuildDefaultWindowContent(sidebar)
+          )
       ],
     );
   }
 }
 
 
-class ToolWindow extends ReorderableToolConfig<ToolWindowManager>{
+class ToolWindow extends ReorderableToolConfig<ToolWindowManager>
+  with ChangeNotifier
+{
 
-  DFWController windowController = DFWController()
+  late final DFWController windowController = DFWController()
     ..dx = 0
     ..dy = 0
+    ..addListener(() {notifyListeners();})
   ;
 
   Widget BuildContent(BuildContext context){
@@ -502,7 +535,10 @@ class ToolWindow extends ReorderableToolConfig<ToolWindowManager>{
     );
   }
 
+  @override OnFocusRegain(){notifyListeners();}
+
   @override @mustCallSuper OnRemove(){
+    notifyListeners();
     return windowController.NotifyClose();
   }
 
@@ -557,6 +593,21 @@ class ToolWindow extends ReorderableToolConfig<ToolWindowManager>{
       ),
     );
 
+  }
+
+  void RestorePosition(Map<String, dynamic>? jsonData){
+    if(jsonData == null) return;
+    double? dx = jsonData["x"];
+    double? dy = jsonData["y"];
+    windowController.dx = dx??0;
+    windowController.dy = dy??0;
+  }
+
+  Map<String, dynamic> SavePosition(){
+    return{
+      "x":windowController.dx,
+      "y":windowController.dy,
+    };
   }
 }
 
@@ -662,7 +713,9 @@ class _SideBarViewState extends ControlledWidgetState<SideBarView> {
   @override
   Widget build(BuildContext context) {
     if(manager.topmost != null){
-      return manager.topmost!.BuildContent(context);
+      return BuildDefaultWindowContent(
+        manager.topmost!.BuildContent(context)
+      );
     }
     return Container();
   }
@@ -711,6 +764,28 @@ class PopupManager
   Future<bool> ClosePopup(PopupConfig popup){
     return RemoveConfig(popup);
   }
+
+  //Widget? _message;
+  Timer? _msgTimer;
+
+  void ShowQuickMessage(Widget message, 
+    [Duration duration = const Duration(seconds: 2)]
+  ){
+    if(!isInstalled) return;
+    var vstate = state as _PopupViewState;
+    vstate._ShowQuickMessage(message);
+    _SetTimer(){
+      if(_msgTimer != null){
+        _msgTimer!.cancel();
+      }
+      _msgTimer = Timer(duration, (){
+        vstate._CloseQuickMessage();
+      });
+    }
+
+    _SetTimer();
+  }
+
 }
 
 class PopupView extends ControlledWidget<PopupView> {
@@ -729,9 +804,51 @@ class PopupView extends ControlledWidget<PopupView> {
   _PopupViewState createState() => _PopupViewState();
 }
 
-class _PopupViewState extends ControlledWidgetState<PopupView> {
+class _PopupViewState 
+  extends ControlledWidgetState<PopupView>
+  with TickerProviderStateMixin
+{
 
   PopupManager get manager => widget.controller;
+
+  late Animation<double> animation;
+  late AnimationController controller;
+
+  Duration get duration => controller.duration!;
+  set duration(Duration val){
+    if(val != duration){
+      controller.duration = val;
+    }
+  }
+
+  TickerFuture _NotifyClose(){
+    return controller.animateBack(0.0);
+  }
+
+  TickerFuture _NotifyOpen(){
+    return controller.animateTo(1.0);
+  }
+
+
+  @override
+  void initState() {
+    super.initState();
+    controller =
+        AnimationController(duration: Duration(seconds: 1), vsync: this);
+    animation = Tween<double>(begin: 0, end: 1).animate(controller)
+      ..addListener(() {
+        setState(() {
+          // The state that has changed here is the animation object’s value.
+        });
+      });
+  }
+
+  @override dispose(){
+    super.dispose();
+    controller.dispose();
+  }
+
+  bool get animFinished => animation.isCompleted || animation.isDismissed; 
 
   Iterable<Widget> _BuildContent()sync*{
     for(var c in manager.ordered){
@@ -754,8 +871,47 @@ class _PopupViewState extends ControlledWidgetState<PopupView> {
         children: [
           AnchoredPosition.fill(child: widget.child),
           for(var c in _BuildContent()) c,
+          if(_quickMsg!=null)
+            AnchoredPosition(
+              anchor: Rect.fromLTRB(0.5, 1, 0.5, 1),
+              alignX: 0.5,
+              bottom: -10,
+              child: Opacity(
+                opacity: 1-animation.value,
+                child: BuildDefaultWindowContent(
+                  Padding(
+                    padding:EdgeInsets.all(8),
+                    child : AnimatedSize(
+                      child:_quickMsg,
+                      vsync: this,
+                      duration: Duration(milliseconds: 100),
+                      curve: Curves.ease,
+                    ),
+                  ),
+                  borderRadius: 20,
+                  backgroundOpacity: 0.5,
+                  backgroundBlur: 10,
+                ),
+              ),
+            ),
+            
         ]
     );
+  }
+
+  Widget? _quickMsg;
+  void _ShowQuickMessage(Widget message) {
+    if(!mounted) return;
+    controller.reset();
+    _quickMsg = message;
+    setState(() {});
+  }
+
+  void _CloseQuickMessage() {
+    if(!mounted) return;
+    controller.forward().then((value) {
+      _quickMsg = null;
+    });
   }
 }
 
@@ -896,6 +1052,7 @@ class _MenuButtonState extends State<MenuButton> {
   late final pCtrl = MenuContext(_ShowPopup, _ClosePopup);
   final closeNotifier = AnimatedCloseNotifier();
 
+
   void _ShowPopup(){
     var mgr = ToolViewManager.of(context);
     assert(mgr != null, "Widget should be placed inside a ToolView");
@@ -910,7 +1067,7 @@ class _MenuButtonState extends State<MenuButton> {
   Widget _BuildButton(){
     _PerformAct(){
       widget.menuEntry.PerformAction(pCtrl);
-      setState((){});
+      //setState((){});
     }
     if(widget.buttonBuilder != null){
       return widget.buttonBuilder!(context, _PerformAct);
@@ -935,7 +1092,8 @@ class _MenuButtonState extends State<MenuButton> {
       pCtrl.NotifyCloseAll();
       widget.menuEntry.isEnabled = false;
       await closeNotifier.NotifyClose();
-      setState((){});
+      if(mounted)
+        setState((){});
     };
   }
 
@@ -1238,6 +1396,10 @@ class MenuBarManager extends WidgetController<MenuBar>{
     return mi;
   }
 
+  void Dispose(){
+
+  }
+
 }
 
 
@@ -1267,12 +1429,12 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
   Iterable<Widget> _BuildQuickAccess()sync*{
     for(var c in manager.quickAccess){
       yield MenuButton(c, (ctx, showFn){
-        return Container(
-          color: BackgroundColor(manager.root.isEnabled, context),
-          child: TextButton(
-            child: Text(c.name.toUpperCase()),
-            onPressed: showFn,
+        return TextButton(
+          style: TextButton.styleFrom(
+            backgroundColor: BackgroundColor(c.isEnabled, context)
           ),
+          child: Text(c.name.toUpperCase()),
+          onPressed: showFn,
         );
       }, PopupDirection.bottom);
     }
@@ -1280,10 +1442,13 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
 
   Widget _BuildMenu(){
     return MenuButton(manager.root, (ctx, showFn){
-      return Container(
-        width: 30, height: 30,
-        color: BackgroundColor(manager.root.isEnabled, context),
+      return SizedBox(
+        width: 30,
+        height: 30,
         child: TextButton(
+          style: TextButton.styleFrom(
+            backgroundColor: BackgroundColor(manager.root.isEnabled, context)
+          ),
           child: Icon(Icons.settings_outlined),
           onPressed: showFn
         ),
@@ -1294,14 +1459,19 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
   @override
   Widget build(BuildContext context) {
 
-    return BuildDefaultWindowContent(Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for(var q in _BuildQuickAccess()) q,
-        SizedBox(width: 10,),
-        _BuildMenu(),
-      ],
-    ));
+    return BuildDefaultWindowContent(
+      SizedBox(
+        height: 30,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for(var q in _BuildQuickAccess()) q,
+            SizedBox(width: 10,),
+            _BuildMenu(),
+          ],
+        ),
+      )
+    );
   }
 }
