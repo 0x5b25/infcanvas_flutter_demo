@@ -69,7 +69,7 @@ class GenericArgGroup{
 
   void _SetType(GenericArgInstance inst, CodeType ty) {
     //empty instance == no type set
-    assert((instType == null) == (instances.isEmpty));
+    //assert((instType == null) == (instances.isEmpty));
     instances.add(inst);
     if(instType == null) {
       instType = ty;
@@ -220,7 +220,7 @@ class ShaderBuiltinFn extends ShaderGraphNode with GNPainterMixin{
 
   @override get displayName => name;
 
-  late final Map<String, GenericArgGroup> _genGroups;
+  late final Map<String, GenericArgGroup> genGroups;
   late final List<ValueInSlotInfo> argIn;
   late final ValueOutSlotInfo valOut;
 
@@ -251,10 +251,10 @@ class ShaderBuiltinFn extends ShaderGraphNode with GNPainterMixin{
     var res = SigParser.parse(declaration);
     assert(res.isValid);
     name = res.name;
-    _genGroups = {};
+    genGroups = {};
     _GetGenGroup(name){
       var genName = _GetGenTypeName(name);
-      var genGroup = _genGroups[genName];
+      var genGroup = genGroups[genName];
       if(genGroup == null)
       {
           genGroup = GenericArgGroup(
@@ -262,7 +262,7 @@ class ShaderBuiltinFn extends ShaderGraphNode with GNPainterMixin{
             (ty){
               _UpdateGenType(genGroup!, ty);
             });
-          _genGroups[genName] = genGroup;
+          genGroups[genName] = genGroup;
       }
       return genGroup;
     }
@@ -326,9 +326,19 @@ class ShaderBuiltinBinOp extends ShaderBuiltinFn{
   @override doCloneNode()=>ShaderBuiltinBinOp(name, op);
 
   @override
-  String GetSrc(argNames) {
+  String GetSrc(args) {
+
+    var argList = <String>[];
+    for(int i = 0; i < args.length; i++){
+      var argTgtType = argIn[i].type!;
+      if(argTgtType != args[i].type){
+        argList.add("${argTgtType.fullName}(${args[i].name})");
+      }else{
+        argList.add(args[i].name);
+      }
+    }
     //NOTE: Can operator do implicit type cast? Yes!
-    return "${argNames[0].name} $op ${argNames[1].name}";
+    return "${argList.first} $op ${argList.last}";
   }
 }
 
@@ -344,7 +354,14 @@ class ShaderBuiltinUnaryOp extends ShaderBuiltinFn{
 
   @override
   String GetSrc(args) {
-    return "$op ${args[0].name}";
+    String arg = "";
+    var argTgtType = argIn.single.type!;
+    if(argTgtType != args.single.type){
+      arg = ("${argTgtType.fullName}(${args.single.name})");
+    }else{
+      arg = (args.single.name);
+    }
+    return "$op ${arg}";
   }
 }
 
@@ -406,6 +423,28 @@ class ShaderConstFloatNode extends ShaderGraphNode with GNPainterMixin{
   //  throw UnimplementedError();
   //}
 
+}
+
+
+class ShaderFragCoordNode extends ShaderGraphNode{
+  
+  @override get displayName => "TexCoord";
+
+  @override get inSlot => [];
+  @override get outSlot => [valOut];
+
+  late final valOut = ValueOutSlotInfo(this, "coord", retType);
+
+  ShaderFragCoordNode(){}
+
+
+  @override doCloneNode() {
+    return ShaderFragCoordNode();
+  }
+
+  @override String GetValName()=>"sk_FragCoord";
+
+  @override get retType => ShaderTypes.float4;
 }
 
 

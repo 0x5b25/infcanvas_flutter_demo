@@ -158,14 +158,14 @@ class ShaderFunction extends CodeElement{
   List<ShaderGraphNode> body = [];
 
 
-  bool IsArgSuitableForEntry(){
-    //Check signature first
-    var argList = args.fields;
-    return (
-        argList.length > 0
-            &&argList.first.type == ShaderTypes.float2
-    );
-  }
+  //bool IsArgSuitableForEntry(){
+  //  //Check signature first
+  //  var argList = args.fields;
+  //  return (
+  //      argList.length > 0
+  //          &&argList.first.type == ShaderTypes.float2
+  //  );
+  //}
 
   bool IsRetSuitableForEntry(){
     var retTy = returnType.value;
@@ -173,7 +173,7 @@ class ShaderFunction extends CodeElement{
   }
 
   bool IsSuitableForEntry(){
-    return IsArgSuitableForEntry() && IsRetSuitableForEntry();
+    return IsRetSuitableForEntry();
   }
 
   bool IsSuitableForEmbedding(){

@@ -98,10 +98,10 @@ Ser_NodeName(
 
 //const float, const int
 
-Des_ConstIntNode(analyzer, data,){ return ConstIntNode()..val = data;}
+Des_ConstIntNode(analyzer, data,){ return ConstIntNode()..val = int.tryParse(data.toString())??0;}
 Ser_ConstIntNode(node){ return node.val;}
 
-Des_ConstFloatNode(analyzer, data,){ return ConstFloatNode()..val = data;}
+Des_ConstFloatNode(analyzer, data,){ return ConstFloatNode()..val = double.tryParse(data.toString())??0;}
 Ser_ConstFloatNode(node){ return node.val;}
 //Instantiate, construct
 

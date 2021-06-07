@@ -132,8 +132,8 @@ class GNBrushPipelineAddStage extends CodeGraphNode
     var samplerIdx = [];
 
     //First arg of suitable shaders should be in main function signature
-    for(int i = 1; i < fn.args.length; i++){
-      var ty = fn.args.fields[i];
+    for(int i = 0; i < fn.args.length; i++){
+      var ty = fn.args.fields[i].type;
       if(ty == ShaderTypes.shader){
         samplerIdx.add(i);
       }else{

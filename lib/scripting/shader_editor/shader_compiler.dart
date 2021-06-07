@@ -129,19 +129,15 @@ List CompileShaderBody(ShaderFunction s) {
     (key, value) => MapEntry(key as ShaderGraphNode, value)
   );
   if(ctx.hasErr) return [null, "Shader function ${s.fullName} has error"];
-
-  return [CompiledShaderBody(s, ctx.src.join('\n'), ctx.refs), null];
+  var buf = StringBuffer();
+  for(var line in ctx.src){
+    buf.writeln("  $line");
+  }
+  return [CompiledShaderBody(s, buf.toString(), ctx.refs), null];
 }
 
 ///[Src, Err]
 List<String?> LinkShader(ShaderFunction s){
-
-  //Check signature first
-  if(!s.IsArgSuitableForEntry()){
-    return[
-      null, "First argument should be float2"
-    ];
-  }
 
   if(!s.IsRetSuitableForEntry()){
     return[
@@ -191,9 +187,8 @@ List<String?> LinkShader(ShaderFunction s){
 
   String linked = "";
 
-  //Add uniforms, arg0 is texCoord input in main function
   //argument
-  for(int i = 1; i < s.args.fields.length;i++){
+  for(int i = 0; i < s.args.fields.length;i++){
     var f =  s.args.fields[i];
     var ty = f.type!.fullName;
     var nm = f.name.value;
@@ -209,7 +204,7 @@ List<String?> LinkShader(ShaderFunction s){
 
   //Insert main
   var mainBody = visited[linkOrder.last]!.src;
-  linked += "half4 main(float2 ${s.args.fields.first.name.value}){\n"
+  linked += "float4 main(){\n"
       + mainBody
       +"}\n";
 

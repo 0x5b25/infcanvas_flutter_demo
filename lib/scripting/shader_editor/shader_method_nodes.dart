@@ -34,6 +34,7 @@ class ShaderTU extends ShaderNodeTranslationUnit{
       var argType = slot.type!;
 
       var from = link.from as ValueOutSlotInfo;
+      if(from.node is! ShaderGraphNode) continue;
       var valNode = from.node as ShaderGraphNode;
       var valName = ctx.AddValueDependency(from.node as ShaderGraphNode);
       var valType = valNode.retType;

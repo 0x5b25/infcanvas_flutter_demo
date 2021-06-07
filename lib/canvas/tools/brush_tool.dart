@@ -890,18 +890,18 @@ class BrushTool extends CanvasTool{
     colorTool.NotifyColorUsed();
     var brushPipe = o!.Update(
       _brushSize, 
-      GetWorldPos(p.localPosition), 
+      Offset.zero,//GetWorldPos(p.localPosition), 
       colorTool.currentColor, 
-      brushOpacity,
-      velocity,
-      Offset(p.orientation,p.tilt), 
+      1,//brushOpacity,
+      Offset.zero,//velocity,
+      Offset.zero,//Offset(p.orientation,p.tilt), 
       pressure
     );
     var pos = ScreenToLocal(p.localPosition);
     var cvCenter = cvTool.offset;
     var _tBrushSize = Offset(_brushSize.width, _brushSize.height);
     var lt = cvCenter.Translated(pos - _tBrushSize/2);
-    cvTool.DrawOnActiveLayer(lt, _brushSize, cvTool.lod, brushPipe);
+    cvTool.DrawOnActiveLayer(lt, cvTool.lod, brushPipe);
   }
 
   _OnDragFinished(ui.PaintObject? o){

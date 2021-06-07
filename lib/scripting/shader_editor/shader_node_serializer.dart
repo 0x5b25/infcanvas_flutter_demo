@@ -1,4 +1,6 @@
 
+import 'dart:convert';
+
 import 'package:infcanvas/scripting/shader_editor/shader_builtin_nodes.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_codemodel.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_editor.dart';
@@ -65,20 +67,29 @@ String Ser_ShaderInvokeNode(ShaderInvokeNode node){
   return fn.fullName;
 }
 
+String _SerailizeGenerics(Iterable<GenericArgGroup> group){
+  Map<String, String> _args = {};
+  for(var g in group){
+    _args[g.argName] = g.instType?.fullName??"";
+  }
+  return jsonEncode(_args);
+}
+
 String Ser_ShaderBuiltinFn(ShaderBuiltinFn node){
-  return node.declaration;
+  return "${node.declaration}|" + _SerailizeGenerics(node.genGroups.values);
 }
 String Ser_ShaderBuiltinBinOp(ShaderBuiltinBinOp node){
-  return "${node.name}|${node.op}";
+  return "${node.name}|${node.op}|"+ _SerailizeGenerics(node.genGroups.values);
 }
 
 String Ser_ShaderBuiltinUnaryOp(ShaderBuiltinUnaryOp node){
-  return "${node.name}|${node.op}";
+  return "${node.name}|${node.op}|"+ _SerailizeGenerics(node.genGroups.values);
 }
 
 Ser_ShaderConstFloatNode(ShaderConstFloatNode node){
   return node.val;
 }
+
 
 Map _deserializeFn = {
   "ElementGetter":Des_ElementGetter,
@@ -89,6 +100,7 @@ Map _deserializeFn = {
   "ShaderBuiltinBinOp":Des_ShaderBuiltinBinOp,
   "ShaderBuiltinUnaryOp":Des_ShaderBuiltinUnaryOp,
   "ShaderConstFloatNode":Des_ShaderConstFloatNode,
+  "ShaderFragCoordNode":Des_ShaderFragCoordNode,
 };
 
 
@@ -133,12 +145,27 @@ ShaderInvokeNode Des_ShaderInvokeNode(
   throw Exception("Can't find function $data");
 }
 
+void _DeserializeGenerics(String record, ShaderBuiltinFn node){
+  Map<String, dynamic> genInstTypes = jsonDecode(record)??{};
+  for(var ge in genInstTypes.entries){
+    var name = ge.key;
+    var ty = ge.value.toString();
+    var type = ShaderTypes.Str2Type(ty);
+    var group = node.genGroups[name];
+    if(group == null) return;
+    group.instType = type;
+  }
+}
 
 ShaderBuiltinFn Des_ShaderBuiltinFn(
     ShaderFnAnalyzer analyzer,
     String data,
     ){
-  return ShaderBuiltinFn.fromDeclaration(data);
+  var d = data.split('|');
+  var fn = ShaderBuiltinFn.fromDeclaration(d.first);
+  var genRec = d.last;
+  _DeserializeGenerics(genRec, fn);
+  return fn;
 }
 
 
@@ -147,7 +174,9 @@ ShaderBuiltinBinOp Des_ShaderBuiltinBinOp(
     String data,
     ){
   var d = data.split('|');
-  return ShaderBuiltinBinOp(d.first, d.last);
+  var fn = ShaderBuiltinBinOp(d[0], d[1]);
+  _DeserializeGenerics(d[2], fn);
+  return fn;
 }
 
 
@@ -156,7 +185,9 @@ ShaderBuiltinUnaryOp Des_ShaderBuiltinUnaryOp(
     String data,
     ){
   var d = data.split('|');
-  return ShaderBuiltinUnaryOp(d.first, d.last);
+  var fn = ShaderBuiltinUnaryOp(d[0], d[1]);
+  _DeserializeGenerics(d[2], fn);
+  return fn;
 }
 
 
@@ -164,8 +195,14 @@ ShaderConstFloatNode Des_ShaderConstFloatNode(
     ShaderFnAnalyzer analyzer,
     data,
     ){
-  return ShaderConstFloatNode()..val = data;
+  return ShaderConstFloatNode()..val = double.tryParse(data.toString())??0;
 }
 
+ShaderFragCoordNode Des_ShaderFragCoordNode(
+    ShaderFnAnalyzer analyzer,
+    _,
+){
+  return ShaderFragCoordNode();
+}
 
 

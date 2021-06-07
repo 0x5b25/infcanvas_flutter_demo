@@ -591,6 +591,8 @@ class CodeEntryTU extends VMNodeTranslationUnit with VMAnchoredTUMixin{
     var n = fromWhichNode as CodeEntryNode;
     if(n.needsExplicitExec){
       var nextlnk = n.execOut.link;
+      var node = nextlnk?.to.node;
+      if(node is! CodeGraphNode?) return;
       ctx.AddNextExec(nextlnk?.to.node as CodeGraphNode?);
     }
   }

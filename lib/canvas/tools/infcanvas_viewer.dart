@@ -20,7 +20,7 @@ import 'package:reorderables/reorderables.dart';
 
 class CVPainter extends CustomPainter{
   final Offset origin;
-  final ui.Image? img;
+  final ui.Picture? img;
   final double canvasScale;
   CVPainter(this.img, this.origin, this.canvasScale);
   @override
@@ -62,7 +62,7 @@ class CVPainter extends CustomPainter{
 
     //cp.tree.DrawTreeToCanvas(canvas, size, cp.offset,cp.height);
     if(img != null){
-      canvas.drawImage(img!, Offset.zero, paint);
+      canvas.drawPicture(img!);//(img!, Offset.zero, paint);
     }
 
 
@@ -84,12 +84,12 @@ class CVViewerOverlay extends ToolOverlayEntry{
   final InfCanvasViewer tool;
   final cvKey = GlobalKey(debugLabel:"CanvasPainter");
 
-  ui.Image? img;
+  ui.Picture? pic;
   Offset off = Offset.zero;
   double canvasScale = 1.0;
 
-  void _DrawSnapshot(ui.Image img, Offset off, double cvScale){
-    this.img = img; this.off = off;this.canvasScale = cvScale;
+  void _DrawSnapshot(ui.Picture pic, Offset off, double cvScale){
+    this.pic = pic; this.off = off;this.canvasScale = cvScale;
     manager.Repaint();
   }
 
@@ -99,7 +99,7 @@ class CVViewerOverlay extends ToolOverlayEntry{
 
   @override
   Widget BuildContent(BuildContext ctx) {
-    if(img == null){
+    if(pic == null){
       WidgetsBinding.instance!.addPostFrameCallback(
         (timeStamp) {_UpdateSnapshot(); }
       );
@@ -110,7 +110,7 @@ class CVViewerOverlay extends ToolOverlayEntry{
         child: SizeChangedLayoutNotifier(
           child: CustomPaint(
             key: cvKey,
-            painter: CVPainter(img,off, canvasScale),
+            painter: CVPainter(pic,off, canvasScale),
           ),
         ),
       )
@@ -787,7 +787,6 @@ class InfCanvasViewer extends CanvasTool{
   //Draw point
   FutureOr<void> DrawOnActiveLayer(
     ui.HierarchicalPoint lt,
-    Size size,
     int lod,
     ui.BrushRenderPipeline stroke,
     [Matrix4? transform]
@@ -795,7 +794,7 @@ class InfCanvasViewer extends CanvasTool{
     if(activePaintLayer == null) return null;
     var layer = activePaintLayer!;
     var tm = (transform??Matrix4.identity()).storage;
-    return layer.DrawRect(lt, size, lod, stroke, tm).then(
+    return layer.DrawRect(lt, lod, stroke, tm).then(
       (_){
         NotifyOverlayUpdate();
       }
@@ -848,7 +847,7 @@ class InfCanvasViewer extends CanvasTool{
     _overlay._UpdateSnapshot();
   }
 
-  late final _snapshotTaskRunner = SequentialTaskGuard<ui.Image>(
+  late final _snapshotTaskRunner = SequentialTaskGuard<ui.Picture>(
     (req)async{
       //Gather info
       CanvasParam p = req.last;

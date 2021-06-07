@@ -28,6 +28,7 @@
 ## TODO (easy to hard)
 - [ ] MORE BRUSH TEMPLATES !
 - [ ] Make layer mix mode panel more accessable
+- [ ] Distribute brush points evenly along stroke
 - [ ] Show thumbnail image in canvas layer manager
 - [ ] Canvas viewport anchoring support
 - [ ] Static data editor in brush editor
@@ -37,6 +38,7 @@
 - [ ] Image import and export
 - [ ] **Project file saving, which is the most welcome one**
 - [ ] Tempoary file cache in case not enough VRAM on mobile devices
+- [ ] Undo/Redo system
 
 ## ISSUES
 

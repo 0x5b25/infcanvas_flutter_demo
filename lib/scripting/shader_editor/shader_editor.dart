@@ -132,11 +132,11 @@ class ShaderFnAnalyzer extends ICodeData with Observable{
 
     if(env == null) return;
 
-    var constNode = ShaderConstFloatNode();
-    var res = _MatchNode(constNode, slot, "Misc");
-    if(res != null){
-      yield res;
-    }
+    var varNode = [
+      ShaderConstFloatNode(),
+      ShaderFragCoordNode(),
+    ];
+    yield* _MatchNodeList(varNode, slot, "Misc");
 
     //Arg getter, invoke
     if(whichFn!= null) {
@@ -180,7 +180,12 @@ class ShaderFnAnalyzer extends ICodeData with Observable{
     var nodes = whichFn!.body;
     //Remove all invalid nodes
     nodes.removeWhere((n){
-      return !n.Validate(this);
+      //return !n.Validate(this);
+      if(!n.Validate(this)){
+        n.RemoveLinks();
+        return true;
+      }
+      return false;
     });
     //Update nodes
     for(var n in nodes){
@@ -507,7 +512,7 @@ class _ShaderFnStatInfoState extends State<ShaderFnStatInfo> {
         Padding(
           padding: const EdgeInsets.only( left:8.0, top:4),
           child: Column(children: [
-            _ChkArg(),
+            //_ChkArg(),
             _ChkRet()
           ],),
         )

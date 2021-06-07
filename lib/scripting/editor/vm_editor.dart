@@ -221,7 +221,11 @@ class VMMethodAnalyzer extends ICodeData with Observable{
     nodes.removeWhere((n){
       if(n is! IValidatableNode) return false;
       var vn = n as IValidatableNode;
-      return !vn.Validate(this);
+      if(!vn.Validate(this)){
+        n.RemoveLinks();
+        return true;
+      }
+      return false;
     });
     //Update nodes
     for(var n in nodes){
