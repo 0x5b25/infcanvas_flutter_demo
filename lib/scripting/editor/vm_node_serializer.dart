@@ -2,6 +2,7 @@
 import 'package:infcanvas/scripting/editor/codemodel.dart';
 import 'package:infcanvas/scripting/editor/vm_editor.dart';
 import 'package:infcanvas/scripting/editor/vm_method_nodes.dart';
+import 'package:infcanvas/utilities/type_helper.dart';
 
 class VMNodeSerializer {
 
@@ -32,8 +33,8 @@ class VMNodeSerializer {
       VMMethodAnalyzer analyzer,
   ) {
     var tag = data["tag"];
-    double position_x = data["position_x"];
-    double position_y = data["position_y"];
+    double position_x = TryCast(data["position_x"])??0;
+    double position_y = TryCast(data["position_y"])??0;
     var nodeData = data["data"] ?? null;
 
 
@@ -66,6 +67,7 @@ Map _serializeFn = {
   CodeFieldGetterNode :Ser_CodeFGNode,
   CodeFieldSetterNode :Ser_CodeFSNode,
   CodeSequenceNode    :Ser_CodeSeqNode,
+  CodeIsObjNullNode   :Ser_CodeIsObjNullNode,
 };
 Map _deserializeFn = {
   "ConstIntNode"       :Des_ConstIntNode,
@@ -80,6 +82,7 @@ Map _deserializeFn = {
   "CodeThisGetterNode" :Des_CodeThisGetterNode,
   "CodeIfNode"         :Des_CodeIfNode,
   "CodeSequenceNode"   :Des_CodeSeqNode,
+  "CodeIsObjNullNode"  :Des_CodeIsObjNullNode,
 };
 
 /*
@@ -208,10 +211,26 @@ Des_CodeIfNode(VMMethodAnalyzer analyzer,data,){
 }
 
 
-Des_CodeSeqNode(VMMethodAnalyzer analyzer,int data,){
+Des_CodeSeqNode(VMMethodAnalyzer analyzer,data,){
   return CodeSequenceNode()..SetSeqCnt(data);
 }
 Ser_CodeSeqNode(CodeSequenceNode node){
   return node.seqCnt;
 }
 
+Des_CodeIsObjNullNode(VMMethodAnalyzer analyzer,data){
+  String typeName = TryCast(data)??"";
+  CodeType? ty;
+  for(var e in analyzer.AccessableTypes()){
+    if(e.fullName == typeName){
+      ty = e;
+      break;
+    }
+  }
+  return CodeIsObjNullNode()
+    ..genGroup.instType = ty
+    ;
+}
+Ser_CodeIsObjNullNode(CodeIsObjNullNode node){
+  return node.genGroup.instType?.fullName??"";
+}

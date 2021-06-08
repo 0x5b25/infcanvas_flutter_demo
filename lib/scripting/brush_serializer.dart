@@ -5,6 +5,7 @@ import 'package:infcanvas/scripting/editor/vm_serializer.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_editor.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_node_serializer.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_serializer.dart';
+import 'package:infcanvas/utilities/type_helper.dart';
 
 class BrushProgSerializer extends VMNodeSerializer{
 
@@ -39,6 +40,7 @@ Map<String, dynamic> SerializeBrush(BrushData brush){
   var shd = SerializeShaderLibrary(sser, brush.shaderLib);
   return {
     "brushName":brush.name,
+    "spacing":brush.spacing,
     "program":prog,
     "shader":shd,
   };
@@ -54,9 +56,10 @@ BrushData DeserializeBrush(Map<String, dynamic> data){
 }
 
 void DeserializeBrushInPlace(BrushData brush, Map<String, dynamic> data){
-  var name = data["brushName"];
-  var data_shd = data["shader"];
-  var data_prog = data["program"];
+  var name = TryCast<String>(data["brushName"])??"Unnamed";
+  double spacing = TryCast(data["spacing"])??0.1;
+  var data_shd = TryCast<Map<String,dynamic>>(data["shader"])??{};
+  var data_prog = TryCast<Map<String,dynamic>>(data["program"])??{};
   var prog = CreateLibSkeleton (data_prog);
   var shd = CreateShaderLibSkeleton(data_shd);
 
@@ -67,6 +70,7 @@ void DeserializeBrushInPlace(BrushData brush, Map<String, dynamic> data){
   FillShaderLibSkeleton(env_shd, sser, shd, data_shd);
 
   brush.name = name;
+  brush.spacing = spacing;
   brush.shaderLib = shd;
   brush.progLib = prog;
   var ser = BrushProgSerializer();

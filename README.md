@@ -44,7 +44,8 @@
 
 - Canvas viewport zooming mechanism is not accurate enough when lod needs to change
 - Increase VM robustness, capture VM errors as complete as possible(No exception support in flutter engine project, sadly ), or the whole application will crash.
-- Since flutter 2.2, the [cross-context image passing trick](https://github.com/flutter/flutter/issues/44148#issuecomment-549970873) used is no longer working. Currently viewport snapshot images needs to be transfered GPU -> CPU -> GPU to be used from dart safely, which tanked performance. Maybe open an issue in flutter repo and ask for help is a good idea.
+- Handle VM null access scenarios during script execution. Maybe exception handling needs to be added to VM?
+- Since flutter 2.2, the [cross-context image passing trick](https://github.com/flutter/flutter/issues/44148#issuecomment-549970873) used is no longer working. ~~Currently viewport snapshot images needs to be transfered GPU -> CPU -> GPU to be used from dart safely, which tanked performance.~~ Currently uses SkPictureRecorder to record tree node layout during snapshot generation. Maybe open an issue in flutter repo and ask for help is a good idea.
 
 ## Stretch Goals
 - Freeform transforming

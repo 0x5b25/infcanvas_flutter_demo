@@ -1,6 +1,7 @@
 
 import 'dart:convert';
 
+import 'package:infcanvas/scripting/editor/generic_slot.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_builtin_nodes.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_codemodel.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_editor.dart';

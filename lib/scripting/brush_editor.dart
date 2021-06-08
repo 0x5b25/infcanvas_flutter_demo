@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'dart:ui';
 import 'package:file_selector/file_selector.dart';
 import 'package:infcanvas/scripting/code_element.dart';
+import 'package:infcanvas/utilities/type_helper.dart';
+import 'package:infcanvas/widgets/visual/sliders.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:infcanvas/scripting/editor/vm_opcodes.dart';
@@ -35,7 +37,11 @@ class BrushPipeTU extends VMNodeTranslationUnit{
         return -1;
       }
       var rear = l.from as ValueOutSlotInfo;
-      return ctx.AddValueDependency(rear.node as CodeGraphNode, rear.outputOrder);
+      var rearNode = TryCast<CodeGraphNode>(rear.node);
+      if(rearNode == null){
+        return -1;
+      }
+      return ctx.AddValueDependency(rearNode, rear.outputOrder);
     }
 
     var node = fromWhichNode as GNBrushPipelineAddStage;
@@ -63,7 +69,8 @@ class BrushPipeTU extends VMNodeTranslationUnit{
       InstLine(OpCode.d_embed, s:"RenderPipeline|PipelineBuilder|AddStage")
     ]));
     ctx.AssignStackPosition();
-    ctx.AddNextExec(node.execOut.link?.to.node as CodeGraphNode?);
+    var nextNode = node.execOut.link?.to.node;
+    ctx.AddNextExec(TryCast<CodeGraphNode>(nextNode));
   }
 
   @override
@@ -294,6 +301,7 @@ class BrushData {
   String name;
   PipelineDesc? desc;
   String? errMsg;
+  double spacing = 0.3;
 
   ///Main program
   late CodeLibrary progLib;
@@ -525,7 +533,7 @@ class BrushData {
 class BrushEditor extends StatefulWidget{
 
   final BrushData data;
-  final Function(AnalyzerEvent)? onChange;
+  final Function(Event)? onChange;
 
   BrushEditor(this.data, [this.onChange]);
 
@@ -638,7 +646,18 @@ class _BrushEditorState extends State<BrushEditor>{
                 ),
                 Column(
                   children: [
-                    Text("Edit static values")
+                    Row(children: [
+                      SizedBox(width:70,child:Text("Spacing")),
+                      ThinSlider(
+                        value: widget.data.spacing,
+                        min: 0, max:2,
+                        onChanged: (newVal){
+                          widget.data.spacing = newVal;
+                          widget.onChange?.call(Event());
+                          setState((){});
+                        },
+                      )
+                    ]),
                   ],
                 ),
                 Expanded(

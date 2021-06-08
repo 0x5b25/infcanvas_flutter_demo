@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:infcanvas/scripting/editor/generic_slot.dart';
 import 'package:infcanvas/scripting/editor/vm_compiler.dart';
 import 'package:infcanvas/scripting/graph_compiler.dart';
 import 'package:infcanvas/scripting/editor/vm_opcodes.dart';
@@ -9,6 +10,7 @@ import 'package:infcanvas/scripting/editor/vm_types.dart';
 import 'package:infcanvas/scripting/editor_widgets.dart';
 import 'package:infcanvas/scripting/codepage.dart';
 import 'package:infcanvas/scripting/editor/vm_editor.dart';
+import 'package:infcanvas/utilities/type_helper.dart';
 
 import 'codemodel.dart';
 
@@ -320,7 +322,11 @@ class VMNormalOpTU extends VMNodeTranslationUnit{
         continue;
       }
       var rear = link.from as ValueOutSlotInfo;
-      var n = rear.node as CodeGraphNode;
+      var n = TryCast<CodeGraphNode>(rear.node);
+      if(n==null){
+        ctx.ReportError("Input $i is unknow type ${rear.node}");
+        continue;
+      }
       var idx = rear.outputOrder;
       depAddr[i] = ctx.AddValueDependency(n, idx);
     }
@@ -340,7 +346,7 @@ class VMNormalOpTU extends VMNodeTranslationUnit{
 
     //Subsequent executions
     for(var s in subsequentExec){
-      var n = s.link?.to.node as CodeGraphNode;
+      var n = TryCast<CodeGraphNode>(s.link?.to.node);
       ctx.AddNextExec(n);
     }
   }
@@ -356,6 +362,7 @@ class DirectTU extends VMNodeTranslationUnit{
   void Translate(VMGraphCompileContext ctx) {
     ctx.EmitCode(SimpleCB(dn.instructions));
   }
+
 }
 
 abstract class DirectOpNode extends CodeGraphNode{
@@ -592,8 +599,7 @@ class CodeEntryTU extends VMNodeTranslationUnit with VMAnchoredTUMixin{
     if(n.needsExplicitExec){
       var nextlnk = n.execOut.link;
       var node = nextlnk?.to.node;
-      if(node is! CodeGraphNode?) return;
-      ctx.AddNextExec(nextlnk?.to.node as CodeGraphNode?);
+      ctx.AddNextExec(TryCast<CodeGraphNode>(node));
     }
   }
 }
@@ -663,10 +669,16 @@ class CodeRetTU extends VMNodeTranslationUnit{
       var dep = _doGetValDep(i);
       if(dep == null)
       {
-        ctx.ReportError("Return value input not satisfied!");
+        ctx.ReportError("Return value input $i is empty");
         return;
       }
-      addrs.add(ctx.AddValueDependency(dep.node as CodeGraphNode, dep.outputOrder));
+      var n = TryCast<CodeGraphNode>(dep.node);
+      if(n == null)
+      {
+        ctx.ReportError("Return value input $i is of unknown type");
+        return;
+      }
+      addrs.add(ctx.AddValueDependency(n , dep.outputOrder));
     }
 
     var retCnt = addrs.length;
@@ -741,8 +753,11 @@ class CodeInvokeNode extends CodeGraphNode implements IValidatableNode{
     subsequentExec: [if(needsExplicitExec) execOut],
     code: SimpleCB([
       InstLine(
+        whichMethod.isEmbeddable?
+          OpCode.d_embed:
         whichMethod.isStatic.value?
-          OpCode.callstatic:OpCode.callmem,
+          OpCode.callstatic:
+          OpCode.callmem,
         s:whichMethod.fullName
       )
     ])
@@ -896,6 +911,45 @@ class CodeFieldSetterNode extends CodeGraphNode implements IValidatableNode{
   }
 
 }
+// is null
+class AnyValInSlotInfo extends ValueInSlotInfo{
+  AnyValInSlotInfo(GraphNode node, String name) : super(node, name);
+
+  @override get type => null;
+
+  @override bool CanEstablishLink(SlotInfo slot) {
+    return slot is ValueOutSlotInfo;
+  }
+
+  @override SlotInfo? doCreateCounterpart() => null;  
+
+}
+
+class CodeIsObjNullNode extends CodeGraphNode{
+
+  @override get displayName => "Is Null";
+  @override doCloneNode() => CodeIsObjNullNode();
+  @override get needsExplicitExec => false;
+
+  GenericArgGroup genGroup = GenericArgGroup(GenericArg("Object"));
+
+  late final GenericValueInSlotInfo tgtIn = 
+    GenericValueInSlotInfo(this, "Target", genGroup);
+
+  late final ValueOutSlotInfo valOut =
+    ValueOutSlotInfo(this, "is null", VMBuiltinTypes.intType);
+
+  @override List<OutSlotInfo> get outSlot => [valOut];
+  @override List<InSlotInfo> get inSlot => [tgtIn];
+
+  @override
+  NodeTranslationUnit doCreateTU() => VMNormalOpTU(
+      stackUsage: 1,
+      valDeps: [tgtIn],
+      code: SimpleCB([InstLine(OpCode.isnull)])
+  );
+}
+
 //    GetThis
 
 class CodeThisGetterNode extends DirectOpNode implements IValidatableNode{
@@ -943,11 +997,7 @@ class CodeIfNode extends CodeGraphNode{
 
   @override bool get needsExplicitExec => true;
 
-  @override
-  NodeTranslationUnit doCreateTU() {
-    // TODO: implement doCreateTU
-    throw UnimplementedError();
-  }
+  @override doCreateTU() => IfNodeTU();
 
   @override get inSlot => [execIn, condIn];
   @override get outSlot => [execOutTrue, execOutFalse];
@@ -968,7 +1018,12 @@ class IfNodeTU extends VMNodeTranslationUnit{
       return;
     }
     var rear = condLink.from as ValueOutSlotInfo;
-    var addr = ctx.AddValueDependency(rear.node as CodeGraphNode, rear.outputOrder);
+    var n = TryCast<CodeGraphNode>(rear.node);
+    if(n == null){
+      ctx.ReportError("Condition input is of unknown type: ${rear.node}");
+      return;
+    }
+    var addr = ctx.AddValueDependency(n, rear.outputOrder);
 
     var jmpTarget = SimpleCB([]);
     ctx.EmitCode(SimpleCB([InstLine(OpCode.ldarg, i:addr)]));
@@ -979,7 +1034,7 @@ class IfNodeTU extends VMNodeTranslationUnit{
       ctx.EnterScope();
       var slot = node.execOutTrue;
       var link = slot.link;
-      ctx.AddNextExec(link?.to.node as CodeGraphNode?);
+      ctx.AddNextExec(TryCast<CodeGraphNode>(link?.to.node));
       ctx.ExitScope();
     }
 
@@ -990,7 +1045,7 @@ class IfNodeTU extends VMNodeTranslationUnit{
       ctx.EnterScope();
       var slot = node.execOutFalse;
       var link = slot.link;
-      ctx.AddNextExec(link?.to.node as CodeGraphNode?);
+      ctx.AddNextExec(TryCast<CodeGraphNode>(link?.to.node));
       ctx.ExitScope();
     }
   }
@@ -1007,7 +1062,7 @@ class IfJmpCB extends CodeBlock{
   @override
   void ModCode(List<InstLine> code){
     var delta = target.startLine - startLine;
-    code[0] = InstLine(OpCode.JZI, i:delta);
+    code[startLine] = InstLine(OpCode.JZI, i:delta);
   }
 
   @override
@@ -1101,7 +1156,7 @@ class SeqNodeTU extends VMNodeTranslationUnit{
   CodeGraphNode? doGetNode(int idx){
     var slot = node.seqOut[idx];
     var lnk = slot.link;
-    return lnk?.to.node as CodeGraphNode;
+    return TryCast<CodeGraphNode>(lnk?.to.node);
   }
 
   @override int ReportStackUsage() => 0;

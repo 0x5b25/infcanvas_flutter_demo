@@ -265,11 +265,12 @@ class VMMethodAnalyzer extends ICodeData with Observable{
 
   @override FindNodeWithConnectableSlot(SlotInfo? slot)sync* {
     //Constants
-    var constVal = [
+    var misc = [
       ConstIntNode(),
       ConstFloatNode(),
+      CodeIsObjNullNode(),
     ];
-    yield* _MatchNodeList(constVal, slot, "Constants");
+    yield* _MatchNodeList(misc, slot, "Misc");
 
     //Control flow
     var ctrlFlow = [

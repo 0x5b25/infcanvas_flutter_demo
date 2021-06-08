@@ -8,6 +8,7 @@ import 'package:infcanvas/scripting/editor/vm_method_nodes.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_codemodel.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_compiler.dart';
 import 'package:infcanvas/scripting/shader_editor/shader_editor.dart';
+import 'package:infcanvas/utilities/type_helper.dart';
 
 class ArgField{
   final ShaderType type;
@@ -27,16 +28,16 @@ class ShaderTU extends ShaderNodeTranslationUnit{
     for(int i = 0; i < fromWhichNode.inSlot.length; i++){
       var slot = fromWhichNode.inSlot[i] as ValueInSlotInfo;
       var link = slot.link;
-      if(link == null){
+      var from = TryCast<ValueOutSlotInfo>(link?.from);
+      var valNode = TryCast<ShaderGraphNode>(from?.node);
+      
+      if(valNode == null){
         ctx.ReportError("Input $i is empty");
         continue;
       }
       var argType = slot.type!;
 
-      var from = link.from as ValueOutSlotInfo;
-      if(from.node is! ShaderGraphNode) continue;
-      var valNode = from.node as ShaderGraphNode;
-      var valName = ctx.AddValueDependency(from.node as ShaderGraphNode);
+      var valName = ctx.AddValueDependency(valNode);
       var valType = valNode.retType;
       inputs[i] = ArgField(valType, valName);
     }

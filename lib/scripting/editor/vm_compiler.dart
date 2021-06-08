@@ -101,10 +101,11 @@ class VMGraphScope{
   int stackUsage = 0;
 
   VMNodeTranslationUnit VisitNode(CodeGraphNode which){
-    assert(FindVisitedNode(which) == null);
+    assert(
+      FindVisitedNode(which) == null 
+    );
 
     var tu = which.CreateTranslationUnit() as VMNodeTranslationUnit;
-
     visitedNodes[which] = tu;
     return tu;
   }
@@ -467,6 +468,7 @@ class VMGraphCompiler{
     int lineCnt = 0;
     for(var cb in blocks){
       int start = lineCnt;
+      cb.startLine = start;
       for(var inst in cb.EmitCode(lineCnt)){
         insts.add(inst);
         lineCnt++;
@@ -482,8 +484,8 @@ class VMGraphCompiler{
 
     }
     for(var i in modPending){
-      var inst = insts.sublist(i.start, i.end);
-      i.block.ModCode(inst);
+      //var inst = insts.sublist(i.start, i.end);
+      i.block.ModCode(insts);
     }
 
     return insts;

@@ -474,10 +474,28 @@ class BrushInputOverlay extends ToolOverlayEntry{
     _BuildButton(showCtxMenu){
       var isSelected = tool.selectedQuickAccess == entry;
       if(isSelected){
+        bool hasErr = !tool.isBrushValid;
         return ElevatedButton(
-          style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
+          style: ElevatedButton.styleFrom(
+            padding: EdgeInsets.zero
+          ),
           onPressed: showCtxMenu,
-          child: entry.brush.thumbnail!
+          child: Padding(
+            padding: const EdgeInsets.all(1.0),
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: Stack(
+                children:[
+                  Center(child:entry.brush.thumbnail!),
+                  if(hasErr)
+                  Positioned(
+                    right: 0, bottom: 0,
+                    child: Icon(Icons.error,size: 18,color: Colors.red,)
+                  ),
+                ]
+              )
+            ),
+          )
         );
       }else{
         return TextButton(
@@ -646,6 +664,42 @@ class BrushInputOverlay extends ToolOverlayEntry{
 
 }
 
+class StepRegister<T>{
+
+  final T data;
+  double residual = 0;
+  final double? step;
+  final double Function()? stepGetter;
+  Offset currPos;
+
+  double get _step => max(1,step??(stepGetter!()));
+
+  StepRegister(this.data, this.currPos,
+  {
+    this.step,
+    this.stepGetter,
+  }){
+    assert(step != null || stepGetter != null);
+  }
+
+  void Move(Offset to, void Function(T, Offset) update){
+    var distance =(to-currPos).distance;
+    var total = distance + residual;
+    int stepCnt = total ~/ _step;
+    var newResidual = total - _step*stepCnt;
+    var advance = -residual;
+    var dir = (to-currPos)/distance;
+    for(int i = 0; i < stepCnt; i++){
+      advance += _step;
+      var pos = currPos + dir*advance;
+      update(data, pos);
+    }
+
+    currPos = to;
+    residual = newResidual;
+  }
+}
+
 class BrushTool extends CanvasTool{
   @override get displayName => "BrushTool";
 
@@ -771,6 +825,7 @@ class BrushTool extends CanvasTool{
   void _ReloadBrushPipeline(){
     var newProg = selectedQuickAccess?.brush.data.PackageBrush().first;
     currentBrush = newProg;
+    manager.Repaint();
   }
 
   void _RefreshQuickAccess() {
@@ -856,57 +911,75 @@ class BrushTool extends CanvasTool{
     return (pos - overlaySize.center(Offset.zero))/canvasScale;
   }
 
-  Offset GetWorldPos(Offset overlayPos){
-    var centered = ScreenToLocal(overlayPos);
+  Offset LocalToWorldPos(Offset localPos){
     var canvasCenterPos = canvasParam.offset;
     var canvasLod = canvasParam.lod;
     var cx = canvasCenterPos.positionX;
     var cy = canvasCenterPos.positionY;
     double scale = pow(2.0, -canvasLod) as double;
-    return (Offset(cx, cy) + centered) * scale;
+    return (Offset(cx, cy) + localPos) * scale;
   }
 
-  late final _brushGR = DetailedMultiDragGestureRecognizer<ui.PaintObject>()
+  Offset GetWorldPos(Offset overlayPos){
+    var centered = ScreenToLocal(overlayPos);
+    return LocalToWorldPos(centered);
+  }
+
+  late final _brushGR = 
+    DetailedMultiDragGestureRecognizer<
+      StepRegister<ui.PaintObject>
+    >()
     ..onDragStart = _OnDragStart
     ..onDragUpdate = _OnDragUpdate
     ..onDragEnd = (d, o){_OnDragFinished(o);}
     ..onDragCancel = _OnDragFinished
   ;
 
-  ui.PaintObject? _OnDragStart(DetailedDragEvent<PointerDownEvent> d){
+  StepRegister<ui.PaintObject>? _OnDragStart(DetailedDragEvent<PointerDownEvent> d){
     if(!_brush.isValid) return null;
+    colorTool.NotifyColorUsed();
     var p = d.pointerEvent;
     var worldPos = GetWorldPos(p.localPosition);
     var po = _brush.NewStroke(worldPos, colorTool.currentColor);
-    return po;
+    return StepRegister(
+      po, ScreenToLocal(p.localPosition), 
+      stepGetter: (){
+        return brushRadius * (selectedQuickAccess?.brush.data.spacing
+        ??1)
+        ;
+      }
+    );
   }
 
-  _OnDragUpdate(DetailedDragUpdate d, ui.PaintObject? o){
+  _OnDragUpdate(DetailedDragUpdate d, StepRegister<ui.PaintObject>? o){
     if(o == null) return;
     var p = d.pointerEvent;
+    var pos = ScreenToLocal(p.localPosition);
     var velocity = d.velocity.pixelsPerSecond;
     var pressure = (p.pressure - p.pressureMin)/(p.pressureMax - p.pressureMin);
     pressure = pressure.clamp(0, 1);
-    colorTool.NotifyColorUsed();
-    var brushPipe = o!.Update(
-      _brushSize, 
-      Offset.zero,//GetWorldPos(p.localPosition), 
-      colorTool.currentColor, 
-      1,//brushOpacity,
-      Offset.zero,//velocity,
-      Offset.zero,//Offset(p.orientation,p.tilt), 
-      pressure
-    );
-    var pos = ScreenToLocal(p.localPosition);
+
     var cvCenter = cvTool.offset;
-    var _tBrushSize = Offset(_brushSize.width, _brushSize.height);
-    var lt = cvCenter.Translated(pos - _tBrushSize/2);
-    cvTool.DrawOnActiveLayer(lt, cvTool.lod, brushPipe);
+
+    o.Move(pos, (paintObj, pos ) {
+      var brushPipe = paintObj.Update(
+        _brushSize, 
+        LocalToWorldPos(pos), 
+        colorTool.currentColor, 
+        brushOpacity,
+        velocity,
+        Offset(p.orientation,p.tilt), 
+        pressure
+      );
+      var _tBrushSize = Offset(_brushSize.width, _brushSize.height);
+      var lt = cvCenter.Translated(pos - _tBrushSize/2);
+      cvTool.DrawOnActiveLayer(lt, cvTool.lod, brushPipe);
+    });
   }
 
-  _OnDragFinished(ui.PaintObject? o){
+  _OnDragFinished(StepRegister<ui.PaintObject>? o){
     if(o == null) return;
-    o!.Dispose();
+    o.data.Dispose();
   }
 
 

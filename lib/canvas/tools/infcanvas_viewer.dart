@@ -149,6 +149,8 @@ class CVViewerOverlay extends ToolOverlayEntry{
 
   _OnPanUpdate(DragUpdateDetails d){
     var delta = d.delta;
+    var cvScale = tool.canvasParam.canvasScale;
+    delta /= cvScale;
     tool.Translate(-delta);
   }
 
@@ -280,7 +282,10 @@ class _LayerEntryState extends State<_LayerEntry> {
 
   InfCanvasViewer get tool => widget.tool;
   bool get isActive=> widget.layer == tool.activePaintLayer;
-  double alpha = 0.5;
+  double get alpha => widget.layer.alpha;
+  set alpha(double val){
+    widget.layer.alpha = val.clamp(0, 1);
+  }
 
   late final _menu = CustomMenuPage(
     name: 'Layer Menu',
@@ -301,6 +306,7 @@ class _LayerEntryState extends State<_LayerEntry> {
                       onChanged: (BlendMode? newValue) {
                         setState(() {
                           widget.layer.blendMode = newValue??BlendMode.srcOver;
+                          mctx.Repaint();
                           _NotifyOverlayUpdate();
                         });
                       },
@@ -594,6 +600,16 @@ class CanvasParam{
     return log(x)/log(2);
   }
 
+  void Drop(){
+    lod++;
+    offset.Drop();
+  }
+
+  void Lift(){
+    lod--;
+    offset.Lift();
+  }
+
   void Scale(double val){
     var total = _canvasScale * val;
     if(total >= 1 && total <= 2){
@@ -693,14 +709,23 @@ class InfCanvasViewer extends CanvasTool{
               SizedBox(width:50, child: Text("LOD ", textAlign: TextAlign.center,)),
               TextButton(
                 child: Icon(Icons.remove),
-                onPressed: (){lod--; NotifyOverlayUpdate(); mctx.Repaint();},
+                onPressed: (){
+                  if(lod <= minLod) return;
+                  canvasParam.Lift();
+                  NotifyOverlayUpdate(); 
+                  mctx.Repaint();
+                },
               ),
               Expanded(
                 child: Text(lod.toString(),textAlign:  TextAlign.center,)
               ),
               TextButton(
                 child: Icon(Icons.add),
-                onPressed: (){lod++; NotifyOverlayUpdate(); mctx.Repaint();},
+                onPressed: (){
+                  canvasParam.Drop();
+                  NotifyOverlayUpdate();
+                  mctx.Repaint();
+                },
               ),
             ],),
           ),
@@ -828,10 +853,10 @@ class InfCanvasViewer extends CanvasTool{
 
   int get lod => _canvasParam.lod;
   set lod(int val){
-    //var newLod = max(val, minHeight);
+    var newLod = max(val, minLod);
     var old = lod;
-    _canvasParam.lod = val;
-    if(old!= val){
+    _canvasParam.lod = newLod;
+    if(old!= newLod){
       NotifyOverlayUpdate();
     }
   }
