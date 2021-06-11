@@ -227,7 +227,8 @@ class BrushObject extends IContent with ChangeNotifier{
       if(!file.existsSync()) return;
       Save();
     },
-    Duration(seconds: 1)
+    Duration(seconds: 1),
+    "DelayedBrushSaver"
   );
 
   String get name => data.name;

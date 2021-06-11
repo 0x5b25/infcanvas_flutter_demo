@@ -66,12 +66,14 @@ class CustomSliderThumbCircle extends SliderComponentShape {
 class ThinSlider extends StatelessWidget {
   final double min, max, value;
   final Function(double)? onChanged;
+  final Function(double)? onChangeEnd;
 
   ThinSlider({
     Key? key,
     required this.value,
     this.min = 0, this.max = 1,
-    this.onChanged
+    this.onChanged,
+    this.onChangeEnd
   }):super(key: key);
 
   @override
@@ -88,6 +90,7 @@ class ThinSlider extends StatelessWidget {
       child: Slider(
         value: value,
         min: min, max: max, onChanged: onChanged,
+        onChangeEnd: onChangeEnd,
       )
     );
   }

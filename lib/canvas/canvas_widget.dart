@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:infcanvas/canvas/canvas_tool.dart';
 import 'package:infcanvas/canvas/tools/brush_tool.dart';
 import 'package:infcanvas/canvas/tools/color_picker.dart';
+import 'package:infcanvas/canvas/tools/file_util.dart';
 import 'package:infcanvas/canvas/tools/infcanvas_viewer.dart';
 import 'package:infcanvas/widgets/functional/floating.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
@@ -20,16 +21,27 @@ class CanvasWidget extends StatefulWidget {
 
 class _CanvasWidgetState extends State<CanvasWidget> {
 
-  late final ToolManager manager;
+  late final CanvasToolManager manager;
   @override initState(){
     super.initState();
-    manager = ToolManager()
+    manager = CanvasToolManager()
       ..tools = [
         InfCanvasViewer(),
         ColorPicker(),
         BrushTool(),
+        FileUtil(),
       ]
     ;
+    manager.menuBarManager.RegisterAction(
+        MenuPath().Next("Undo", Icons.undo),
+        () { manager.UndoOneStep(); }
+    );
+
+    manager.menuBarManager.RegisterAction(
+        MenuPath().Next("Redo", Icons.redo),
+        () { manager.RedoOneStep();}
+    );
+
     manager.InitTools(context);
     manager.menuBarManager.RegisterAction(
         MenuPath().Next("Back", Icons.home_filled),

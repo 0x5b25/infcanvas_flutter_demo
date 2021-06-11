@@ -256,7 +256,8 @@ class VMMethodAnalyzer extends ICodeData with Observable{
   }
 
   late final _analysisTask = SequentialTaskGuard<bool>(
-      (_) async => FullyAnalyzeMethod()
+      (_) async => FullyAnalyzeMethod(),
+      "VMMethodAnalyzeTask"
   );
 
   Future<bool> BeginAnalyzeMethod(){

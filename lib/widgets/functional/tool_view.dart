@@ -323,6 +323,15 @@ class ToolViewManager extends WidgetController<ToolView>{
     overlayManager.Dispose();
     menuBarManager.Dispose();
   }
+
+  @override Repaint(){
+    //print("Tool view repaint!");
+    //popupManager.Repaint();
+    //windowManager.Repaint();
+    //overlayManager.Repaint();
+    //menuBarManager.Repaint();
+    super.Repaint();
+  }
 }
 
 
@@ -658,6 +667,7 @@ class _ToolWindowPanelState extends ControlledWidgetState<ToolWindowPanel> {
 
   @override
   Widget build(BuildContext context) {
+    //print("Tool Window Rebuild");
     return AnchorStack(
       children: _BuildWindows(),
     );
@@ -1056,7 +1066,7 @@ class _MenuButtonState extends State<MenuButton> {
   void _ShowPopup(){
     var mgr = ToolViewManager.of(context);
     assert(mgr != null, "Widget should be placed inside a ToolView");
-    widget.menuEntry.isEnabled = true;
+    widget.menuEntry.isActivated = true;
     mgr!.popupManager.ShowPopup(pConfig);
   }
 
@@ -1090,7 +1100,7 @@ class _MenuButtonState extends State<MenuButton> {
     };
     pConfig.onRemove = ()async{
       pCtrl.NotifyCloseAll();
-      widget.menuEntry.isEnabled = false;
+      widget.menuEntry.isActivated = false;
       await closeNotifier.NotifyClose();
       if(mounted)
         setState((){});
@@ -1115,7 +1125,15 @@ class _MenuButtonState extends State<MenuButton> {
 class MenuContentBase{
   String name;
   IconData? ico;
-  bool _isEnabled = false;
+  bool _isActivated = false;
+  bool get isActivated => _isActivated;
+  set isActivated(bool val) {
+    if(val == _isActivated) return;
+    _isActivated = val;
+    Repaint();
+  }
+
+  bool _isEnabled = true;
   bool get isEnabled => _isEnabled;
   set isEnabled(bool val) {
     if(val == _isEnabled) return;
@@ -1156,7 +1174,8 @@ class MenuActionButton extends StatelessWidget{
 
   final String? label;
   final IconData icon;
-  final Function() onPressed;
+  final Function()? onPressed;
+  final bool isActivated;
 
   MenuActionButton(
     {
@@ -1164,11 +1183,16 @@ class MenuActionButton extends StatelessWidget{
       this.label,
       required this.icon,
       required this.onPressed,
+      this.isActivated = false,
     }
   ):super(key: key);
 
   @override build(ctx){
+    var color = _MenuBarState.BackgroundColor(isActivated, ctx);
     return TextButton(
+      style: TextButton.styleFrom(
+        backgroundColor:color,
+      ),
       child: SizedBox(
         width: 60,
         child: Column(
@@ -1189,6 +1213,8 @@ class SubMenu extends MenuPage{
 
   List<MenuContentBase> items = [];
 
+  //@override get isEnabled => true;
+
   SubMenu({
     required String name,
     IconData? ico,
@@ -1200,16 +1226,15 @@ class SubMenu extends MenuPage{
     BuildContext bctx,
   ){
     entry._repaintFn = mctx.Repaint;
-    var color = _MenuBarState.BackgroundColor(entry.isEnabled, bctx);
-    return Container(
-      color: color,
-      child: MenuActionButton(
-        icon: entry.ico??Icons.all_inclusive,
-        label: entry.name,
-        onPressed: (){
-          entry.PerformAction(mctx);
-        },
-      ),
+    
+    return MenuActionButton(
+      icon: entry.ico??Icons.all_inclusive,
+      label: entry.name,
+      isActivated: entry.isActivated,
+      onPressed: entry.isEnabled?
+      (){
+        entry.PerformAction(mctx);
+      }:null,
     );
   }
 
@@ -1431,7 +1456,7 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
       yield MenuButton(c, (ctx, showFn){
         return TextButton(
           style: TextButton.styleFrom(
-            backgroundColor: BackgroundColor(c.isEnabled, context)
+            backgroundColor: BackgroundColor(c.isActivated, context)
           ),
           child: Text(c.name.toUpperCase()),
           onPressed: showFn,
@@ -1447,7 +1472,7 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
         height: 30,
         child: TextButton(
           style: TextButton.styleFrom(
-            backgroundColor: BackgroundColor(manager.root.isEnabled, context)
+            backgroundColor: BackgroundColor(manager.root.isActivated, context)
           ),
           child: Icon(Icons.settings_outlined),
           onPressed: showFn

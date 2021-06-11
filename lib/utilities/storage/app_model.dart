@@ -51,7 +51,8 @@ class AppModel{
     (_){
       _SaveModel();
     },
-    Duration(seconds: 1)
+    Duration(seconds: 1),
+    "DelayedAppModelSaver"
   );
 
   void _SaveModel()async{

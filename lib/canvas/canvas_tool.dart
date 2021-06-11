@@ -1,5 +1,6 @@
 
 import 'package:flutter/widgets.dart';
+import 'package:infcanvas/canvas/command.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
 
 
@@ -11,7 +12,7 @@ import 'package:infcanvas/widgets/functional/tool_view.dart';
 ///               scratch pad, reference picture
 /// - Utility   : Volatile tool, provides functionalities, example:
 ///               file importer,
-class ToolManager extends ToolViewManager{
+mixin ToolManager on ToolViewManager{
 
   final Map<Type, CanvasTool> _loadedTools = {};
 
@@ -19,7 +20,7 @@ class ToolManager extends ToolViewManager{
     _loadedTools.clear();
     for(var e in val){
       _loadedTools[e.runtimeType] = (e);
-      e.manager = this;
+      e.manager = this as CanvasToolManager;
     }
   }
 
@@ -29,7 +30,7 @@ class ToolManager extends ToolViewManager{
 
   void InitTools(BuildContext ctx){
     for(var v in _loadedTools.values){
-      v.OnInit(this, ctx);
+      v.OnInit(this as CanvasToolManager, ctx);
     }
   }
 
@@ -52,17 +53,28 @@ T? ReadMapSafe<T>(Map<String, dynamic> map, String key){
 
 abstract class CanvasTool{
 
-  late ToolManager manager;
+  late CanvasToolManager manager;
 
   String get displayName;
 
-  void OnInit(ToolManager manager, BuildContext ctx){
+  void OnInit(CanvasToolManager manager, BuildContext ctx){
 
   }
 
   void Dispose(){
 
   }
+}
+
+class CanvasToolManager 
+  extends ToolViewManager
+  with ToolManager, CommandRecorder
+{
+
+  void ClearSession(){
+    Reset();
+  }
+
 }
 
 void RestoreToolWindowLayout(

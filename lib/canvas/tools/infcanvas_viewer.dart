@@ -8,21 +8,121 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:infcanvas/canvas/canvas_tool.dart';
+import 'package:infcanvas/canvas/command.dart';
 import 'package:infcanvas/utilities/async/task_guards.dart';
 import 'package:infcanvas/utilities/storage/app_model.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 import 'package:infcanvas/widgets/functional/any_drag.dart';
 import 'package:infcanvas/widgets/functional/floating.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
+import 'package:infcanvas/widgets/tool_window/color_picker.dart';
 import 'package:infcanvas/widgets/visual/sliders.dart';
 import 'package:provider/provider.dart';
 import 'package:reorderables/reorderables.dart';
 
+abstract class CanvasViewerCommand extends CanvasCommand{
+  late InfCanvasViewer tool;
+  late int activeLayer;
+  ui.CanvasInstance get cvInst => tool.cvInstance;
+  
+}
+
+class CanvasLayerParamChangeCommand extends CanvasViewerCommand{
+  int layerID;
+  //Params
+  BlendMode blendMode;
+  double alpha;
+
+  CanvasLayerParamChangeCommand(
+    this.layerID,
+    this.blendMode,
+    this.alpha
+  );
+
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    assert(layerID >= 0 && layerID < cvInst.LayerCount());
+    var layer = cvInst.GetLayer(layerID);
+    layer.blendMode = blendMode;
+    layer.alpha = alpha;
+  } 
+}
+
+class CanvasLayerAddCommand extends CanvasViewerCommand{
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    cvInst.CreatePaintLayer();
+  }
+}
+
+class CanvasLayerRemoveCommand extends CanvasViewerCommand{
+
+  int layerID;
+  CanvasLayerRemoveCommand(this.layerID);
+
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    assert(layerID >= 0 && layerID < cvInst.LayerCount());
+    cvInst.GetLayer(layerID).Remove();
+  }
+}
+
+class CanvasLayerMoveCommand extends CanvasViewerCommand{
+
+  int layerID;
+  int pos;
+  CanvasLayerMoveCommand(this.layerID, this.pos);
+
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    assert(layerID >= 0 && layerID < cvInst.LayerCount());
+    cvInst.GetLayer(layerID).MoveTo(pos);
+  }
+}
+
+class CanvasLayerMergeCommand extends CanvasViewerCommand{
+
+  int layerID;
+  CanvasLayerMergeCommand(this.layerID);
+
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    assert(layerID >= 0 && layerID < cvInst.LayerCount() - 1);
+    cvInst.MergeDownPaintLayer(layerID);
+  }
+}
+
+class CanvasLayerDupCommand extends CanvasViewerCommand{
+
+  int layerID;
+  CanvasLayerDupCommand(this.layerID);
+
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    assert(layerID >= 0 && layerID < cvInst.LayerCount());
+    cvInst.DuplicatePaintLayer(layerID);
+  }
+}
+
+
 class CVPainter extends CustomPainter{
-  final Offset origin;
-  final ui.Picture? img;
-  final double canvasScale;
-  CVPainter(this.img, this.origin, this.canvasScale);
+  final CVViewerOverlay overlay;
+  Offset get origin=>overlay.off;
+  ui.Picture? get img=>overlay.pic;
+  double get canvasScale => overlay.canvasScale;
+
+  InfCanvasViewer get tool => overlay.tool;
+
+  Color get bgColor => tool.bgColor;
+  bool get showBG => tool.showBgColor;
+
+  CVPainter._(this.overlay, ChangeNotifier color):
+  super(repaint: color);
+
+  factory CVPainter(CVViewerOverlay overlay){
+    return CVPainter._(overlay, overlay.tool._bgColorCtrl.colorNotifier);    
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     var cvW = size.width * (canvasScale - 1);
@@ -41,7 +141,7 @@ class CVPainter extends CustomPainter{
 
     var w = step/2;
     for(var x = xStart; x <= size.width; x+=step){
-      for(var y = yStart; y <= size.width; y+=step){
+      for(var y = yStart; y <= size.height; y+=step){
 
         var cx = x + w;
         var cy = y + w;
@@ -56,6 +156,10 @@ class CVPainter extends CustomPainter{
       }
     }
 
+    if(showBG){
+      canvas.drawColor(bgColor, BlendMode.srcOver);
+    }
+
     //print("Cursor pos: ${touchPoint}");
     Paint paint = Paint();
     paint.filterQuality = FilterQuality.high;
@@ -68,8 +172,8 @@ class CVPainter extends CustomPainter{
 
     //p.shader = shaderProg.GenerateShader(uniforms);
     //canvas.drawRect(Rect.fromCenter(center:Offset.zero, width: 480, height: 480),p );
-    paint.color = Color.fromARGB(255, 0, 255, 0);
-    canvas.drawCircle(origin, 3, paint);
+    //paint.color = Color.fromARGB(255, 0, 255, 0);
+    //canvas.drawCircle(origin, 3, paint);
     //canvas.drawRect(Rect.fromLTWH(-cp.offset.dx, -cp.offset.dy, 50, 50), p);
   }
   @override
@@ -110,7 +214,7 @@ class CVViewerOverlay extends ToolOverlayEntry{
         child: SizeChangedLayoutNotifier(
           child: CustomPaint(
             key: cvKey,
-            painter: CVPainter(pic,off, canvasScale),
+            painter: CVPainter(this),
           ),
         ),
       )
@@ -257,9 +361,20 @@ class CVViewerOverlay extends ToolOverlayEntry{
 }
 
 class _LayerThumbPainter extends CustomPainter{
+  ui.Image? _img;
+
+  _LayerThumbPainter(this._img);
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
-    canvas.drawPaint(Paint()..color = Color.fromARGB(255, 130, 80, 140));
+    canvas.drawPaint(Paint()..color = Color.fromARGB(255, 255, 255, 255));
+
+    if(_img!=null)
+      canvas.drawImageRect(
+        _img!, 
+        Rect.fromLTWH(0, 0, _img!.width.toDouble(), _img!.height.toDouble()),
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()
+      );
   }
 
   @override
@@ -269,10 +384,10 @@ class _LayerThumbPainter extends CustomPainter{
 
 class _LayerEntry extends StatefulWidget{
 
-  final ui.PaintLayer layer;
-  final InfCanvasViewer tool;
+  final ui.CanvasLayerWrapper layer;
+  final _LayerManagerWidgetState window;
 
-  _LayerEntry(Key key, this.layer, this.tool):super(key: key);
+  _LayerEntry(Key key, this.layer, this.window):super(key: key);
 
   @override
   _LayerEntryState createState() => _LayerEntryState();
@@ -280,11 +395,30 @@ class _LayerEntry extends StatefulWidget{
 
 class _LayerEntryState extends State<_LayerEntry> {
 
-  InfCanvasViewer get tool => widget.tool;
-  bool get isActive=> widget.layer == tool.activePaintLayer;
+  InfCanvasViewer get tool => widget.window.tool;
+  bool get isActive=> 
+    tool._activeLayerIdx == widget.layer.index;
   double get alpha => widget.layer.alpha;
   set alpha(double val){
     widget.layer.alpha = val.clamp(0, 1);
+  }
+
+  bool get canMerge => 
+    widget.layer.index < tool.cvInstance.LayerCount() - 1;
+
+  bool get canModify => widget.layer.isEnabled && widget.layer.isVisible;
+
+  void MergeLayer(){
+    assert(canMerge);
+    widget.window.MergeLayer(widget.layer);
+  }
+
+  void DupLayer(){
+    widget.window.DupLayer(widget.layer);
+  }
+
+  void RemoveLayer(){
+    widget.window.RemoveLayer(widget.layer);
   }
 
   late final _menu = CustomMenuPage(
@@ -304,8 +438,17 @@ class _LayerEntryState extends State<_LayerEntry> {
                       isDense: true,
                       isExpanded: true,
                       onChanged: (BlendMode? newValue) {
+                        if(newValue == widget.layer.blendMode) return;
                         setState(() {
+                          
                           widget.layer.blendMode = newValue??BlendMode.srcOver;
+                          tool.RecordCommand(
+                            CanvasLayerParamChangeCommand(
+                              widget.layer.index,
+                              widget.layer.blendMode, 
+                              alpha
+                            )
+                          );
                           mctx.Repaint();
                           _NotifyOverlayUpdate();
                         });
@@ -323,17 +466,24 @@ class _LayerEntryState extends State<_LayerEntry> {
               children: [
                 Text("Alpha"),
                 Expanded(
-                  child: Slider(
-                    label: "Alpha",
+                  child: ThinSlider(
                     value: alpha,
                     onChanged: (val){
                       alpha = val;
                       _NotifyOverlayUpdate();
                       mctx.Repaint();
                     },
+                    onChangeEnd:(val){
+                      tool.RecordCommand(
+                        CanvasLayerParamChangeCommand(
+                          widget.layer.index,
+                          widget.layer.blendMode, 
+                          alpha
+                        )
+                      );
+                    }
                   ),
                 ),
-                Text(alpha.toStringAsFixed(2))
               ],
             ),
             Divider(),
@@ -345,12 +495,22 @@ class _LayerEntryState extends State<_LayerEntry> {
                   MenuActionButton(
                     icon: Icons.get_app,
                     label: "Merge",
-                    onPressed: (){mctx.Close();}
+                    onPressed: 
+                      canModify&&canMerge?
+                    (){
+                      mctx.Close();
+                      MergeLayer();
+                    }:null
                   ),
                   MenuActionButton(
                       icon: Icons.copy,
                       label: "Duplicate",
-                      onPressed: (){mctx.Close();}
+                      onPressed: 
+                        canModify?
+                      (){
+                        mctx.Close();
+                        DupLayer();
+                      }:null
                   ),
 
                 ],
@@ -361,9 +521,7 @@ class _LayerEntryState extends State<_LayerEntry> {
               style: ElevatedButton.styleFrom(primary: Colors.red),
               onPressed: ()async{
                 await mctx.Close();
-                widget.layer.Remove();
-                _NotifyOverlayUpdate();
-                _NotifyParentUpdate();
+                RemoveLayer();
 
               }, child: Text("Remove")
             ),
@@ -381,86 +539,91 @@ class _LayerEntryState extends State<_LayerEntry> {
       border: Border.all(
         color: isActive?
           Theme.of(context).primaryColor:
-          Theme.of(context).highlightColor,
+          Theme.of(context).backgroundColor,
         width: 2,
       )
     );
     return MenuButton(
       _menu,
       (ctx, showFn) {
-        return Padding(
-            padding: const EdgeInsets.all(4.0),
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: border,
-              //color: (isActive?Theme.of(context).primaryColor.withOpacity(0.5):null),
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () {
-                  if (isActive) {
-                    showFn();
-                  }
-                  else {
-                    tool.activePaintLayer = widget.layer;
-                    _NotifyParentUpdate();
-                  }
-                },
-                child: ClipRect(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: CustomPaint(painter: _LayerThumbPainter(),)
-                      ),
-                      Positioned(
-                        top: 0, right: 0,
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: TextButton(
-                              child: Icon(
-                                widget.layer.isEnabled ? Icons.lock_open : Icons
-                                    .lock,
-                                size: 18,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  widget.layer.isEnabled =
-                                  !widget.layer.isEnabled;
-                                });
-                              }
+        return AspectRatio(
+          aspectRatio: 1.0,
+          child: Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Container(
+                decoration: border,
+                //color: (isActive?Theme.of(context).primaryColor.withOpacity(0.5):null),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {
+                    if (isActive) {
+                      showFn();
+                    }
+                    else {
+                      tool._activeLayerIdx = widget.layer.index;
+                      _NotifyParentUpdate();
+                    }
+                  },
+                  child: ClipRect(
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _LayerThumbPainter(
+                              widget.layer.GetThumbnail()
+                            ),
+                          )
+                        ),
+                        Positioned(
+                          top: 0, right: 0,
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: TextButton(
+                                child: Icon(
+                                  widget.layer.isEnabled ? Icons.lock_open : Icons
+                                      .lock,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    widget.layer.isEnabled =
+                                    !widget.layer.isEnabled;
+                                  });
+                                }
+                            ),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        bottom: 0, right: 0,
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: TextButton(
-                              child: Icon(
-                                widget.layer.isVisible ? Icons.visibility : Icons
-                                    .visibility_off_outlined,
-                                size: 18,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  widget.layer.isVisible =
-                                  !widget.layer.isVisible;
-                                  _NotifyOverlayUpdate();
-                                });
-                              }
+                        Positioned(
+                          bottom: 0, right: 0,
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: TextButton(
+                                child: Icon(
+                                  widget.layer.isVisible ? Icons.visibility : Icons
+                                      .visibility_off_outlined,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    widget.layer.isVisible =
+                                    !widget.layer.isVisible;
+                                    _NotifyOverlayUpdate();
+                                  });
+                                }
+                            ),
                           ),
                         ),
-                      ),
-                      
-                    ],
+                        
+                      ],
 
+                    ),
                   ),
                 ),
               ),
             ),
-          );
+        );
       }
     );
   }
@@ -473,6 +636,93 @@ class _LayerEntryState extends State<_LayerEntry> {
 
   void _NotifyOverlayUpdate(){
     tool.NotifyOverlayUpdate();
+  }
+}
+
+class _BGColorIndicator extends CustomPainter{
+  final InfCanvasViewer tool;
+
+  _BGColorIndicator(this.tool):super(repaint: tool._bgColorCtrl.colorNotifier);
+
+  @override
+  void paint(ui.Canvas canvas, ui.Size size) {
+    var shaderProg = ChessboardShaderProg;
+    var paintShd = ui.PaintShader(shaderProg).MakeShaderInstance();
+    canvas.drawPaint(Paint()..shader = paintShd);
+
+    if(tool.showBgColor){
+      var color = tool.bgColor;
+      canvas.drawColor(color, BlendMode.srcOver);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _BackgroundColorSelector extends StatefulWidget {
+  final InfCanvasViewer tool;
+
+  const _BackgroundColorSelector(this.tool);
+
+  @override createState() => _BackgroundColorSelectorState();
+}
+
+class _BackgroundColorSelectorState extends State<_BackgroundColorSelector> {
+
+  late final _menu = CustomMenuPage(
+    name: "BackgroundColor",
+    builder: (bctx, mctx){
+      return SizedBox(
+        width: 180,
+        child: ColorPickerWidget(ctrl: widget.tool._bgColorCtrl)
+      );
+    }
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuButton(
+      _menu,
+      (bctx,showFn){
+        return GestureDetector(
+          onTap: (){
+            widget.tool._bgColorCtrl.NotifyColorUsed();
+            showFn();
+          },
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _BGColorIndicator(widget.tool),
+                )
+              ),
+              Positioned(
+                right: 0,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: TextButton(
+                      child: Icon(
+                        widget.tool.showBgColor ? Icons.visibility : Icons
+                            .visibility_off_outlined,
+                        size: 18,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          widget.tool.showBgColor =
+                          !widget.tool.showBgColor;
+                        });
+                      }
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    );
   }
 }
 
@@ -490,6 +740,37 @@ class _LayerManagerWidgetState extends State<LayerManagerWidget> {
 
   InfCanvasViewer get tool => widget.tool;
 
+  void MergeLayer(ui.CanvasLayerWrapper layer){
+    tool.cvInstance.MergeDownPaintLayer(layer.index);
+    widget.tool.RecordCommand(
+      CanvasLayerMergeCommand(layer.index)
+    );
+    tool.NotifyCVUpdate();
+    setState((){});
+  }
+
+  void DupLayer(ui.CanvasLayerWrapper layer){
+    tool.cvInstance.DuplicatePaintLayer(layer.index);
+    widget.tool.RecordCommand(
+      CanvasLayerDupCommand(layer.index)
+    );
+    tool.NotifyCVUpdate();
+    setState((){});
+  }
+
+  void RemoveLayer(ui.CanvasLayerWrapper layer){
+    if(widget.tool._activeLayerIdx == layer.index){
+      widget.tool._activeLayerIdx = -1;
+    }
+    widget.tool.RecordCommand(
+      CanvasLayerRemoveCommand(layer.index)
+    );
+    layer.Remove();
+    tool.NotifyOverlayUpdate();
+    //_NotifyParentUpdate();
+    setState((){});
+  }
+
   @override
   Widget build(BuildContext context) {
     var layers = widget.tool.cvInstance.layers;
@@ -499,42 +780,62 @@ class _LayerManagerWidgetState extends State<LayerManagerWidget> {
       children: [
         ConstrainedBox(
           constraints: BoxConstraints(
-            minWidth: 100,
-            maxWidth: 100,
             minHeight: 100,
             maxHeight: 400,
           ),
           child: Scrollbar(
-            child: ReorderableColumn(
-              onReorder: (oldIndex, newIndex) {
-                if(oldIndex == newIndex) return;
+            child: SizedBox(
+              width: 100,
+              child: ReorderableColumn(
+                onReorder: (oldIndex, newIndex) {
+                  if(oldIndex == newIndex) return;
 
-                //if(newIndex > oldIndex){
-                //  newIndex -= 1;
-                //}
-                widget.tool.cvInstance.layers[oldIndex].MoveTo(newIndex);
-                tool.NotifyOverlayUpdate();
-                setState((){});
-              },
-              children: <Widget>[
-                for(int i = 0; i < layers.length; i++)
-                  _LayerEntry(Key("_layerman_entry_#${i}"),layers[i],tool),
+                  //if(newIndex > oldIndex){
+                  //  newIndex -= 1;
+                  //}
+                  widget.tool.cvInstance.GetLayer(oldIndex).MoveTo(newIndex);
+                  if(widget.tool._activeLayerIdx == oldIndex){
+                    widget.tool._activeLayerIdx = newIndex;
+                  }
+                  widget.tool.RecordCommand(CanvasLayerMoveCommand(oldIndex, newIndex));
+                  tool.NotifyOverlayUpdate();
+                  setState((){});
+                },
+                children: <Widget>[
+                  for(var l in layers)
+                    _LayerEntry(Key("_layerman_entry_#${l.index}"),l,this),
 
-              ]
+                ]
+              ),
             ),
           ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextButton(onPressed: (){
-                widget.tool.cvInstance.CreateNewPaintLayer();
-                setState((){});
-              }, child: Icon(Icons.add)),
-            )
-          ],
-        )
+
+        Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: Container(
+            height: 30,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: Theme.of(context).backgroundColor,
+                width: 2,
+              )
+            ),
+            child: 
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: _BackgroundColorSelector(widget.tool)
+            ),
+          ),
+        ),
+
+
+        TextButton(onPressed: (){
+          widget.tool.cvInstance.CreatePaintLayer();
+          widget.tool.RecordCommand(CanvasLayerAddCommand());
+          setState((){});
+        }, child: Icon(Icons.add))
       ],
     );
   }
@@ -549,7 +850,8 @@ class LayerManagerWindow extends ToolWindow{
 
   @override BuildContent(BuildContext context){
     var layers = tool.cvInstance.layers;
-    return IntrinsicWidth(
+    return SizedBox(
+      width: 100,
       child:CreateDefaultLayout(
         LayerManagerWidget(tool:tool),
         title: "Layers",
@@ -558,8 +860,13 @@ class LayerManagerWindow extends ToolWindow{
   }
 
   @override OnRemove(){
-    tool._lmAction.isEnabled = false;
+    tool._lmAction.isActivated = false;
     return super.OnRemove();
+  }
+
+  _NotifyUpdate(){
+    if(isInstalled)
+      manager.Repaint();
   }
 }
 
@@ -747,6 +1054,21 @@ class InfCanvasViewer extends CanvasTool{
     mgr.menuBarManager.RegisterPage(
       MenuPath().Next("Zoom", Icons.zoom_in), _BuildZoomPage
     );
+
+    mgr.RegisterReplayBeginListener(() { 
+      cvInstance.Clear();
+    });
+
+    mgr.RegisterReplayFinishListener(() {
+      while(minLod > lod){
+        _canvasParam.Drop();
+      }
+      if(_activeLayerIdx >= cvInstance.LayerCount()){
+        _activeLayerIdx = -1;
+      }
+      NotifyCVUpdate();
+    });
+
     _model = Provider.of<AppModel>(ctx, listen: false);
     try{
       RestoreState();
@@ -755,12 +1077,23 @@ class InfCanvasViewer extends CanvasTool{
     }
     _layerMgrWnd.addListener(() {_saveTaskGuard.Schedule();});
 
-    var blackhole = await rootBundle.load("assets/images/blackhole.jpg");
-    var codec = await ui.instantiateImageCodec(blackhole.buffer.asUint8List());
-    var frame = await codec.getNextFrame();
-    blackholeImg = frame.image;
   }
-  ui.Image? blackholeImg;
+
+  late final _bgColorCtrl = ColorPickerController()
+    ..color = Color.fromARGB(255, 255, 255, 255);
+  bool _showBgColor = false;
+  bool get showBgColor => _showBgColor;
+  set showBgColor(bool val){
+    if(val == _showBgColor) return;
+    _showBgColor = val;
+    _bgColorCtrl.colorNotifier.notifyListeners();
+  }
+
+  Color get bgColor => _bgColorCtrl.color;
+  set bgColor(Color val){
+    if(val == bgColor) return;
+    _bgColorCtrl.color = val;
+  }
 
   late final _overlay = CVViewerOverlay(this);
   late final MenuAction _lmAction;
@@ -783,19 +1116,19 @@ class InfCanvasViewer extends CanvasTool{
   }
 
   _ShowLMWindow(){
-    _lmAction.isEnabled = true;
+    _lmAction.isActivated = true;
     manager.windowManager.ShowWindow(_layerMgrWnd);
   }
 
   _OnLMWindowClose(){
-    _lmAction.isEnabled = true;
+    _lmAction.isActivated = true;
   }
 
-  ui.InfCanvasInstance _cvInstance = ui.InfCanvasInstance();
+  ui.CanvasInstance _cvInstance = ui.CanvasInstance();
   int get minLod{return 1 - _cvInstance.height;}
 
-  ui.InfCanvasInstance get cvInstance => _cvInstance;
-  set cvInstance(ui.InfCanvasInstance val){
+  ui.CanvasInstance get cvInstance => _cvInstance;
+  set cvInstance(ui.CanvasInstance val){
     var old = _cvInstance;
     _cvInstance = val;
     if(old != val){
@@ -803,11 +1136,21 @@ class InfCanvasViewer extends CanvasTool{
     }
   }
 
-  ui.PaintLayer? _activeLayer;
-  ui.PaintLayer? get activePaintLayer => _activeLayer;
-  set activePaintLayer(ui.PaintLayer? val){
-    _activeLayer = val;
+  int _activeLayerIdx = -1;
+
+  int get activeLayerIdx => _activeLayerIdx;
+  bool get isActiveLayerDrawable{
+    if(_activeLayerIdx < 0 || _activeLayerIdx >= cvInstance.LayerCount())
+      return false;
+    var layer = cvInstance.GetLayer(_activeLayerIdx);
+    return (layer.isEnabled && layer.isVisible);
   }
+
+  //ui.CanvasLayerWrapper? _activeLayer;
+  //ui.CanvasLayerWrapper? get activePaintLayer => _activeLayer;
+  //set activePaintLayer(ui.CanvasLayerWrapper? val){
+  //  _activeLayer = val;
+  //}
 
   //Draw point
   FutureOr<void> DrawOnActiveLayer(
@@ -816,8 +1159,9 @@ class InfCanvasViewer extends CanvasTool{
     ui.BrushRenderPipeline stroke,
     [Matrix4? transform]
   ){
-    if(activePaintLayer == null) return null;
-    var layer = activePaintLayer!;
+    if(_activeLayerIdx < 0
+      ||_activeLayerIdx >= cvInstance.LayerCount()) return null;
+    var layer = cvInstance.GetLayer(_activeLayerIdx);
     var tm = (transform??Matrix4.identity()).storage;
     return layer.DrawRect(lt, lod, stroke, tm).then(
       (_){
@@ -872,6 +1216,12 @@ class InfCanvasViewer extends CanvasTool{
     _overlay._UpdateSnapshot();
   }
 
+  ///Repaint both viewport and layer manager
+  void NotifyCVUpdate(){
+    NotifyOverlayUpdate();
+    //manager.Repaint();
+  }
+
   late final _snapshotTaskRunner = SequentialTaskGuard<ui.Picture>(
     (req)async{
       //Gather info
@@ -889,8 +1239,10 @@ class InfCanvasViewer extends CanvasTool{
       var img = await _cvInstance.GenSnapshot(
           p.offset, lod, w, h);
       _overlay._DrawSnapshot(img, delta, scale);
+      _layerMgrWnd._NotifyUpdate();
       return img;
-    }
+    },
+    "CanvasSnapshotTask"
   );
 
   _RequestGenerateSnapshot(Size size){
@@ -908,5 +1260,11 @@ class InfCanvasViewer extends CanvasTool{
     _saveTaskGuard.FinishImmediately();
     _layerMgrWnd.dispose();
     _overlay.Dispose();
+  }
+
+  void RecordCommand(CanvasViewerCommand command){
+    command.tool = this;
+    command.activeLayer = _activeLayerIdx;
+    manager.RecordCommand(command);
   }
 }

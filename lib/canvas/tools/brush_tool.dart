@@ -12,6 +12,7 @@ import 'package:infcanvas/brush_manager/brush_manager.dart';
 import 'package:infcanvas/brush_manager/brush_manager_widget.dart';
 
 import 'package:infcanvas/canvas/canvas_tool.dart';
+import 'package:infcanvas/canvas/command.dart';
 import 'package:infcanvas/canvas/tools/color_picker.dart';
 import 'package:infcanvas/canvas/tools/infcanvas_viewer.dart';
 import 'package:infcanvas/utilities/async/task_guards.dart';
@@ -25,9 +26,61 @@ import 'package:infcanvas/widgets/tool_window/color_picker.dart';
 import 'package:infcanvas/widgets/visual/sliders.dart';
 import 'package:path/path.dart';
 import 'package:provider/provider.dart';
-import 'package:reorderables/reorderables.dart';
 
+class _BrushPointInfo{
+  late ui.HierarchicalPoint lt;
 
+  late Size size;
+  late Offset worldPos;
+  late Color color;
+  late double brushOpacity;
+  late Offset speed;
+  late Offset tilt;
+  late double pressure;
+
+  late int lod;
+  late int layerID;
+}
+
+class CanvasBrushCommand extends CanvasCommand{
+
+  late BrushTool tool;
+
+  ui.PipelineDesc _brushProg;
+  int lod;
+  ui.HierarchicalPoint origin;
+  Offset initialPos;
+  Color initialColor;
+  int layerID;
+  //Brush point data
+  List<_BrushPointInfo> points = [];
+  
+  CanvasBrushCommand(
+    this._brushProg, this.layerID, this.lod, this.origin,
+    this.initialColor, this.initialPos,
+  );
+
+  @override
+  void Execute(CommandRecorder recorder, BuildContext ctx) {
+    if(points.isEmpty) return;
+    var runner = ui.BrushInstance();
+    runner.InstallDesc(_brushProg);
+    var paintObj = runner.NewStroke(initialPos, initialColor);
+    for(var p in points){
+      var pipeline = paintObj.Update(
+        p.size, p.worldPos, p.color, p.brushOpacity, p.speed, p.tilt, p.pressure
+      );
+      
+      var tm = (Matrix4.identity()).storage;
+      var layer = tool.cvTool.cvInstance.GetLayer(p.layerID);
+      layer.DrawRect(p.lt.Clone(), p.lod, pipeline, tm);
+    }
+    tool.cvTool.canvasParam.lod = lod;
+    tool.cvTool.canvasParam.offset = origin;
+    //tool.cvTool.NotifyOverlayUpdate();
+    paintObj.Dispose();
+  }
+}
 
 class AsyncPopupButton<T> extends StatefulWidget {
 
@@ -700,6 +753,11 @@ class StepRegister<T>{
   }
 }
 
+class StrokeHolder{
+  late ui.PaintObject paintObj;
+  late CanvasBrushCommand command;
+}
+
 class BrushTool extends CanvasTool{
   @override get displayName => "BrushTool";
 
@@ -719,6 +777,8 @@ class BrushTool extends CanvasTool{
           ActivateTool();
       }
     );
+
+    mgr.RegisterReplayFinishListener(() { _ReloadBrushPipeline();});
 
     _model = Provider.of<AppModel>(ctx, listen: false);
     try{
@@ -792,7 +852,7 @@ class BrushTool extends CanvasTool{
   bool isActive = false;
   void ActivateTool(){
     if(isActive) return;
-    _menuAction.isEnabled = true;
+    _menuAction.isActivated = true;
     manager.overlayManager.RegisterOverlayEntry(_overlay, 1);
     isActive = true;
     ScheduleSaveState();
@@ -802,7 +862,7 @@ class BrushTool extends CanvasTool{
     if(!isActive) return;
     isActive = false;
     manager.overlayManager.RemoveOverlayEntry(_overlay);
-    _menuAction.isEnabled = false;
+    _menuAction.isActivated = false;
     ScheduleSaveState();
   }
 
@@ -927,7 +987,7 @@ class BrushTool extends CanvasTool{
 
   late final _brushGR = 
     DetailedMultiDragGestureRecognizer<
-      StepRegister<ui.PaintObject>
+      StepRegister<StrokeHolder>
     >()
     ..onDragStart = _OnDragStart
     ..onDragUpdate = _OnDragUpdate
@@ -935,14 +995,26 @@ class BrushTool extends CanvasTool{
     ..onDragCancel = _OnDragFinished
   ;
 
-  StepRegister<ui.PaintObject>? _OnDragStart(DetailedDragEvent<PointerDownEvent> d){
+  StepRegister<StrokeHolder>? _OnDragStart(DetailedDragEvent<PointerDownEvent> d){
     if(!_brush.isValid) return null;
+    if(!cvTool.isActiveLayerDrawable) return null;
     colorTool.NotifyColorUsed();
     var p = d.pointerEvent;
     var worldPos = GetWorldPos(p.localPosition);
     var po = _brush.NewStroke(worldPos, colorTool.currentColor);
+
+    var cmd = CanvasBrushCommand(
+      currentBrush!, 
+      cvTool.activeLayerIdx,
+      canvasParam.lod,
+      canvasParam.offset.Clone(),
+      colorTool.currentColor, worldPos
+    )..tool = this;
+
+    var holder = StrokeHolder()..paintObj = po..command = cmd;
+
     return StepRegister(
-      po, ScreenToLocal(p.localPosition), 
+      holder, ScreenToLocal(p.localPosition), 
       stepGetter: (){
         return brushRadius * (selectedQuickAccess?.brush.data.spacing
         ??1)
@@ -951,7 +1023,7 @@ class BrushTool extends CanvasTool{
     );
   }
 
-  _OnDragUpdate(DetailedDragUpdate d, StepRegister<ui.PaintObject>? o){
+  _OnDragUpdate(DetailedDragUpdate d, StepRegister<StrokeHolder>? o){
     if(o == null) return;
     var p = d.pointerEvent;
     var pos = ScreenToLocal(p.localPosition);
@@ -961,8 +1033,8 @@ class BrushTool extends CanvasTool{
 
     var cvCenter = cvTool.offset;
 
-    o.Move(pos, (paintObj, pos ) {
-      var brushPipe = paintObj.Update(
+    o.Move(pos, (holder, pos ) {
+      var brushPipe = holder.paintObj.Update(
         _brushSize, 
         LocalToWorldPos(pos), 
         colorTool.currentColor, 
@@ -973,13 +1045,29 @@ class BrushTool extends CanvasTool{
       );
       var _tBrushSize = Offset(_brushSize.width, _brushSize.height);
       var lt = cvCenter.Translated(pos - _tBrushSize/2);
+
+      holder.command.points.add(_BrushPointInfo()
+        ..lt = lt.Clone()
+        ..size = _brushSize
+        ..worldPos = LocalToWorldPos(pos)
+        ..color = colorTool.currentColor
+        ..brushOpacity = brushOpacity
+        ..speed = velocity
+        ..tilt = Offset(p.orientation,p.tilt)
+        ..pressure = pressure
+        ..lod = cvTool.lod
+        ..layerID = cvTool.activeLayerIdx
+      );
+
       cvTool.DrawOnActiveLayer(lt, cvTool.lod, brushPipe);
+
     });
   }
 
-  _OnDragFinished(StepRegister<ui.PaintObject>? o){
+  _OnDragFinished(StepRegister<StrokeHolder>? o){
     if(o == null) return;
-    o.data.Dispose();
+    o.data.paintObj.Dispose();
+    manager.RecordCommand(o.data.command);
   }
 
 

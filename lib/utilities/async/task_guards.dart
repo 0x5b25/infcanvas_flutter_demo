@@ -14,17 +14,17 @@ class Request<T>{
 ///Guarantee that task is not launched during execution
 ///requests posted will schedule new runs sequentially
 class SequentialTaskGuard<T>{
-
+  String? _debugString;
   bool isRunning = false;
   List<Request<T>> queued = [];
   final Future<T> Function(List) task;
-  SequentialTaskGuard(this.task);
+  SequentialTaskGuard(this.task,[this._debugString]);
 
   bool get isScheduled => queued.isNotEmpty;
 
   Future<void> _Runner()async{
     assert(isRunning);
-    debugPrint("Task runner started.");
+    debugPrint("${_debugString??''} Task runner started.");
     while(true){
       //Enter critical 2
       if(!isScheduled) break;
@@ -41,7 +41,7 @@ class SequentialTaskGuard<T>{
         res = await task(args);
       } catch(e, stackTrace){
         error = e; st = stackTrace;
-        debugPrint("Task runner encounters an error.");
+        debugPrint("${_debugString??''} Task runner encounters an error.");
       } finally {
         for (var f in _req) {
           if(error == null)
@@ -56,16 +56,16 @@ class SequentialTaskGuard<T>{
   }
 
   Future<T> RunNowOrSchedule([arg]){
-    debugPrint("New task scheduled");
+    debugPrint("${_debugString??''} New task scheduled");
     var f = _ScheduleRun(arg);
     if(!isRunning){
-      debugPrint("Launching task runner...");
+      debugPrint("${_debugString??''} Launching task runner...");
       //Enter critical 1
       isRunning = true;
       //Leave critical 1
       _Runner().then(
         (v){
-          debugPrint("Stopping task runner...");
+          debugPrint("${_debugString??''} Stopping task runner...");
           //Enter critical 1
           isRunning = false;
           //Leave critical 1
@@ -85,20 +85,20 @@ class SequentialTaskGuard<T>{
 }
 
 class DelayedTaskGuard<T>{
-
+  String? _debugString;
   Timer? _timer;
   Duration delay;
 
   bool isRunning = false;
   List<Request<T>> queued = [];
   final T Function(List) task;
-  DelayedTaskGuard(this.task, this.delay);
+  DelayedTaskGuard(this.task, this.delay, [this._debugString]);
 
   bool get isScheduled => queued.isNotEmpty;
 
   void _Runner(){
     assert(isRunning);
-    debugPrint("Task runner started.");
+    debugPrint("${_debugString??''} Task runner started.");
       //Enter critical 2
       var _req = queued;
       queued = [];
@@ -113,7 +113,7 @@ class DelayedTaskGuard<T>{
         res = task(args);
       } catch(e, stackTrace){
         error = e; st = stackTrace;
-        debugPrint("Task runner encounters an error.");
+        debugPrint("${_debugString??''} Task runner encounters an error.");
       } finally {
         for (var f in _req) {
           if(error == null)
@@ -124,21 +124,21 @@ class DelayedTaskGuard<T>{
         }
       }
 
-    debugPrint("Task runner finished.");
+    debugPrint("${_debugString??''} Task runner finished.");
   }
 
   Future<T> Schedule([arg]){
-    debugPrint("New task scheduled");
+    debugPrint("${_debugString??''} New task scheduled");
     var f = _ScheduleRun(arg);
     if(!isRunning){
-      debugPrint("Scheduling delayed task runner...");
+      debugPrint("${_debugString??''} Scheduling delayed task runner...");
       //Enter critical 1
       isRunning = true;
       _timer = Timer(delay,(){
-        debugPrint("Waking task runner...");
+        debugPrint("${_debugString??''} Waking task runner...");
         _Runner();
 
-        debugPrint("Stopping task runner...");
+        debugPrint("${_debugString??''} Stopping task runner...");
               //Enter critical 1
         isRunning = false;
               //Leave critical 1

@@ -65,12 +65,12 @@ class ColorPicker extends CanvasTool{
   }
 
   void ShowColorPicker(){
-    _showAction.isEnabled = true;
+    _showAction.isActivated = true;
     manager.windowManager.ShowWindow(_window);
   }
 
   void _OnWndClose(){
-    _showAction.isEnabled = false;
+    _showAction.isActivated = false;
   }
 
   late final _saveTaskGuard = DelayedTaskGuard(

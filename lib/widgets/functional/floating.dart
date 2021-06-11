@@ -214,7 +214,7 @@ Widget BuildDefaultWindowContent(
     decoration: BoxDecoration(
         boxShadow: <BoxShadow>[
           BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.3),
               blurRadius: 15.0,
               offset: Offset(0.0, 0.75)
           )
@@ -357,6 +357,20 @@ abstract class AnimatedClosableWidgetState<T extends AnimatedClosableWidget>
     }
   }
 
+
+  void OnFullyOpened(){
+    setState(() {
+      
+    });
+  }
+
+  
+  void OnFullyClosed(){
+    setState(() {
+      
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -367,7 +381,14 @@ abstract class AnimatedClosableWidgetState<T extends AnimatedClosableWidget>
         setState(() {
           // The state that has changed here is the animation object’s value.
         });
-      });
+      })
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          OnFullyOpened();
+        } else if (status == AnimationStatus.dismissed) {
+          OnFullyClosed();
+        }
+      });;
     controller.forward();
     _RegCtrl(widget.closeNotifier);
   }

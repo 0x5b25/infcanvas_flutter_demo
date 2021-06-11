@@ -199,7 +199,8 @@ class ShaderFnAnalyzer extends ICodeData with Observable{
     return cpRes.last == null;
   }
   late final _analysisTask = SequentialTaskGuard<bool>(
-      (_)async=>AnalyzeFn()
+      (_)async=>AnalyzeFn(),
+      "ShaderFnAnalyzeTask"
   );
 
   Future<bool> BeginAnalyze(){
