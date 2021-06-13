@@ -513,9 +513,9 @@ class _ToolOverlayViewState extends ControlledWidgetState<ToolOverlayView> {
 
         if(sidebar != null)
           AnchoredPosition(
-            anchor: Rect.fromLTWH(0, 0, 0, 1),
-            top:100,
-            bottom: -100,
+            anchor: Rect.fromLTRB(0, 0.15, 0, 0.85),
+            top:10,
+            bottom:-10,
             width: 40,
             left: 10,
             child: BuildDefaultWindowContent(sidebar)

@@ -52,14 +52,13 @@ class GenericArgGroup{
     instances.add(inst);
     if(instType == null) {
       instType = ty;
-      onTypeSet?.call(ty);
-      return;
     }
+    onTypeSet?.call(ty);
     //Find "Shallower" type
-    if(instType!.IsSubTypeOf(ty)){
-      onTypeSet?.call(ty);
-      instType = ty;
-    }
+    //if(instType!.IsSubTypeOf(ty)){
+    //  onTypeSet?.call(ty);
+    //  instType = ty;
+    //}
   }
 
   void _UnsetType(GenericArgInstance inst) {

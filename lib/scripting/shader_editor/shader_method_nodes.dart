@@ -99,8 +99,14 @@ class ShaderRetTU extends ShaderTU{
 
   @override
   void Translate(ShaderGraphCompileContext ctx){
+    var fn = (fromWhichNode as ShaderRetNode);
+    var retType = fn.retType;
     var names = AddValDeps(ctx);
-    ctx.EmitCode("return ${names.first.name};");
+    var argType = names.first.type;
+    if(argType == retType)
+      ctx.EmitCode("return ${names.first.name};");
+    else
+      ctx.EmitCode("return ${retType.fullName}(${names.first.name});");
   }
 }
 

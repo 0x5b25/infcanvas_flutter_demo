@@ -301,11 +301,18 @@ class _ShaderFnEditorState extends State<ShaderFnEditor> {
 
   @override
   Widget build(BuildContext context) {
+
+    return LayoutBuilder(builder: (ctx, size){
+
+
+    bool compact = size.maxWidth < 700;
+
     return Material(
       child:
       Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if(!compact)
           Container(
             width: 300,
             child: Column(
@@ -341,7 +348,13 @@ class _ShaderFnEditorState extends State<ShaderFnEditor> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-
+                      if(compact)
+                      TextButton(
+                          onPressed: (){
+                            Navigator.of(context).pop();
+                          },
+                          child: Text("Back")
+                      ),
                     ],
                   ),
                 ),
@@ -414,6 +427,8 @@ class _ShaderFnEditorState extends State<ShaderFnEditor> {
         ],
       ),
     );
+  
+    });
   }
 }
 

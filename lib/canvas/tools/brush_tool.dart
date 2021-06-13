@@ -66,8 +66,9 @@ class CanvasBrushCommand extends CanvasCommand{
     var runner = ui.BrushInstance();
     runner.InstallDesc(_brushProg);
     var paintObj = runner.NewStroke(initialPos, initialColor);
+    assert(paintObj != null);
     for(var p in points){
-      var pipeline = paintObj.Update(
+      var pipeline = paintObj!.Update(
         p.size, p.worldPos, p.color, p.brushOpacity, p.speed, p.tilt, p.pressure
       );
       
@@ -78,7 +79,8 @@ class CanvasBrushCommand extends CanvasCommand{
     tool.cvTool.canvasParam.lod = lod;
     tool.cvTool.canvasParam.offset = origin;
     //tool.cvTool.NotifyOverlayUpdate();
-    paintObj.Dispose();
+    paintObj!.Dispose();
+    runner.Dispose();
   }
 }
 
@@ -1002,6 +1004,7 @@ class BrushTool extends CanvasTool{
     var p = d.pointerEvent;
     var worldPos = GetWorldPos(p.localPosition);
     var po = _brush.NewStroke(worldPos, colorTool.currentColor);
+    if(po == null) return null;
 
     var cmd = CanvasBrushCommand(
       currentBrush!, 

@@ -53,7 +53,8 @@ Future<BrushTemplate> _DecodeTemplateFromBundle(String name)async{
 }
 
 const templates = <String>[
-  "default_brush.zip",
+  "alternating.zip",
+  "round.zip",
 ];
 
 Future<List<BrushTemplate>> LoadTemplates()async{

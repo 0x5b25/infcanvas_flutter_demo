@@ -45,90 +45,145 @@ class _VMTypeInspectorState extends State<VMTypeInspector> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _BuildSideBar(BuildContext context,
+    void Function(CodeMethodBase?) onSel
+  ){
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(widget.type.fullName, style: Theme.of(context)
+                  .textTheme
+                  .headline5,),
+
+              Divider(),
+              //Text("Fields", style: Theme.of(context).textTheme.bodyText1,),
+              Card(
+                child: FieldEditor(
+                  widget.type.fields,
+                  widget._AvailTypes,
+                  title:"Fields",
+                ),
+              ),
+
+              //Text("StaticFields", style: Theme.of(context).textTheme.bodyText1,),
+              Card(
+                  child: FieldEditor(
+                    widget.type.staticFields,
+                    widget._AvailTypes,
+                    title:"Static Fields",
+                  ),
+              ),
+
+
+              Card(
+                child: MethodSigInspector(
+                  widget.type,
+                  widget.env,
+                  widget._AvailTypes,
+                  onSelect: onSel,
+                ),
+              )
+
+            ],
+          ),
+        ),
+        ElevatedButton(
+            onPressed: (){
+              Navigator.of(context).pop();
+            },
+            child: Text("Back")
+        ),
+      ],
+    );
+  }
+
+  Widget _BuildCodePage(CodeMethod? selected
+    , List<CustomOp> ops
+  ){
     return Material(
-      child: Row(
+      child: Container(
+        child: (selected == null)?null:
+        MethodBodyEditor(selected,widget.env, customOps: ops,),
+      ),
+    );
+  }
+
+  Widget _BuildFullLayout(BuildContext context){
+    return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
               width: 300,
               color: Colors.white,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(widget.type.fullName, style: Theme.of(context)
-                            .textTheme
-                            .headline5,),
-
-                        Divider(),
-                        //Text("Fields", style: Theme.of(context).textTheme.bodyText1,),
-                        Card(
-                          child: FieldEditor(
-                            widget.type.fields,
-                            widget._AvailTypes,
-                            title:"Fields",
-                          ),
-                        ),
-
-                        //Text("StaticFields", style: Theme.of(context).textTheme.bodyText1,),
-                        Card(
-                            child: FieldEditor(
-                              widget.type.staticFields,
-                              widget._AvailTypes,
-                              title:"Static Fields",
-                            ),
-                        ),
-
-
-                        Card(
-                          child: MethodSigInspector(
-                            widget.type,
-                            widget.env,
-                            widget._AvailTypes,
-                            onSelect: _SelectMethod,
-                          ),
-                        )
-
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
-                      onPressed: (){
-                        Navigator.of(context).pop();
-                      },
-                      child: Text("Back")
-                  ),
-                ],
-              )
+              child: _BuildSideBar(context, _SelectMethod)
           ),
           Expanded(
-            child: Container(
-              child: (_selectedMtd == null)?null:
-              MethodBodyEditor(_selectedMtd!,widget.env),
-            )
+            child: _BuildCodePage(_selectedMtd, [])
           )
         ],
-      ),
+      );
+  }
+
+  Widget _BuildSlimLayout(BuildContext context){
+    return  Container(
+      color: Colors.white,
+      child: _BuildSideBar(context, (mtd){
+        _selectedMtd = mtd as CodeMethod?;
+        if(mtd == null) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_){
+            return _BuildCodePage(
+              mtd as CodeMethod,
+              [
+                CustomOp("Back", () {
+                  Navigator.of(context).pop();
+                })
+              ]
+            );
+          })
+        );
+      })
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      child: LayoutBuilder(
+        builder: (ctx, size){
+          if(size.maxWidth < 700){
+            return _BuildSlimLayout(context);
+          }else{
+            return _BuildFullLayout(context);
+          }
+        },
+      )
+    );
+  }
+}
+
+class CustomOp{
+  String name;
+  void Function() action;
+  CustomOp(this.name, this.action);
 }
 
 class MethodBodyEditor extends StatefulWidget {
 
   final CodeMethod method;
   final VMEditorEnv env;
+  final List<CustomOp> customOps;
 
   const MethodBodyEditor(
     this.method,
     this.env,
     {
-      Key? key
+      Key? key,
+      this.customOps = const []
     }
   ) : super(key: key);
 
@@ -198,7 +253,11 @@ class _MethodBodyEditorState extends State<MethodBodyEditor> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-
+                for(var op in widget.customOps)
+                  TextButton(
+                    onPressed: op.action,
+                    child: Text(op.name)
+                  )
               ],
             ),
           ),

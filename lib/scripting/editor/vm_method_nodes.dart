@@ -509,6 +509,55 @@ class InstantiateNode extends DirectOpNode implements IValidatableNode{
   @override get stackUsage => 1;
 }
 
+class ConstructTU extends VMNodeTranslationUnit{
+  
+  @override int ReportStackUsage() => 1;
+
+  @override
+  void Translate(VMGraphCompileContext ctx) {
+    var n = fromWhichNode as ConstructNode;
+    
+    var valDeps = n.memIn;
+    var depAddr = List.filled(valDeps.length, 0);
+    for(int i = 0; i < valDeps.length; i++){
+      var slot = valDeps[i];
+      var link = slot.link;
+      if(link == null){
+        ctx.ReportError("Input $i can't be null");
+        continue;
+      }
+      var rear = link.from as ValueOutSlotInfo;
+      var n = TryCast<CodeGraphNode>(rear.node);
+      if(n==null){
+        ctx.ReportError("Input $i is unknow type ${rear.node}");
+        continue;
+      }
+      var idx = rear.outputOrder;
+      depAddr[i] = ctx.AddValueDependency(n, idx);
+    }
+    //assign position
+    ctx.AssignStackPosition();
+
+    //code emits
+    //int pos = stackPosition!;
+
+    var code = [
+      InstLine(OpCode.newobj, s:n.type.fullName),
+    ];
+
+    for(int i= 0; i < valDeps.length; i++){
+      code += [
+        InstLine(OpCode.ldarg, i:depAddr[i]),
+        InstLine(OpCode.ldi, i:1),
+        InstLine(OpCode.stmem, s:valDeps[i].field.fullName),
+      ];
+    }
+
+    ctx.EmitCode(SimpleCB(code)..debugInfo = "Construct ${n.type.name}"); 
+
+  }
+}
+
 class ConstructNode extends CodeGraphNode implements IValidatableNode{
   CodeType type;
 
@@ -539,15 +588,7 @@ class ConstructNode extends CodeGraphNode implements IValidatableNode{
   }
 
 
-  @override
-  NodeTranslationUnit doCreateTU() {
-    return VMNormalOpTU(
-      stackUsage: 1,
-      valDeps: memIn,
-      code: SimpleCB([InstLine(OpCode.newobj, s:type.fullName)])
-        ..debugInfo = "ct ${type.fullName}"
-    );
-  }
+  @override doCreateTU() => ConstructTU();
 
 }
 
@@ -824,8 +865,12 @@ class CodeFieldGetterNode extends CodeGraphNode with IValidatableNode{
     ,whichField.targetType
   );
 
-  late final FieldOutSlotInfo valOut =
-    FieldOutSlotInfo(this, whichField.whichField);
+  late final ValueOutSlotInfo valOut =
+    ValueOutSlotInfo(
+      this, 
+      whichField.name,
+      whichField.type
+    );
 
   @override List<OutSlotInfo> get outSlot => [valOut];
   @override List<InSlotInfo> get inSlot => [
@@ -852,6 +897,8 @@ class CodeFieldGetterNode extends CodeGraphNode with IValidatableNode{
   }
 
   @override Update(){
+    valOut.name = whichField.name;
+    valOut.type = whichField.type;
     if(whichField.isStatic)
       tgtIn.Disconnect();
     super.Update();
