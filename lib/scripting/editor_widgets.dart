@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 
 
 class PushButton extends StatefulWidget {
@@ -233,7 +234,7 @@ class _NewEntryButtonState extends State<_NewEntryButton> {
   }
 
   Widget _showAddButton(){
-    return TextButton(
+    return SizedTextButton(
       onPressed: (){setState(() {
         _RequestNewEntry();
       });},
@@ -264,13 +265,13 @@ class _NewEntryButtonState extends State<_NewEntryButton> {
             )
           ),
           
-          SizedBox( width: 30, height: 30,
-            child: TextButton(
-              onPressed: configHasError? Reset:AddEntry,
-              child: configHasError?
-              Icon(Icons.close, color: Colors.red,):
-              Icon(Icons.check, color: Colors.green,),
-            ),
+          SizedTextButton( width: 30, height: 30,
+            
+            onPressed: configHasError? Reset:AddEntry,
+            child: configHasError?
+            Icon(Icons.close, color: Colors.red,):
+            Icon(Icons.check, color: Colors.green,),
+           
           ),
         ],
       ),
@@ -373,17 +374,15 @@ class _ListEditorState extends State<ListEditor> {
               children: [
                 Expanded(child: Text(widget.title)),
                 if(widget.canEdit)
-                  SizedBox(width: 30, height: 30,
-                    child:TextButton(
-                      onPressed: (){
-                        setState(() {
-                          _inEditMode = !_inEditMode;
-                        });
-                      },
-                      child: _inEditMode?
-                      Icon(Icons.check,color: Colors.green,):
-                      Icon(Icons.edit,),
-                    ),
+                  SizedTextButton(width: 30, height: 30,
+                    onPressed: (){
+                      setState(() {
+                        _inEditMode = !_inEditMode;
+                      });
+                    },
+                    child: _inEditMode?
+                    Icon(Icons.check,color: Colors.green,):
+                    Icon(Icons.edit,),
                   ),
               ],
             ),
@@ -475,11 +474,10 @@ class _ListEditorState extends State<ListEditor> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children:[
         if(widget.listToEdit.canRemove)
-          SizedBox( width: 30, //height: 30,
-            child: TextButton(
-              onPressed: (){RemoveEntry(entry, idx);},
-              child:Icon(Icons.delete, color: Colors.red,),
-            ),
+          SizedTextButton( 
+            width: 30, //height: 30,
+            onPressed: (){RemoveEntry(entry, idx);},
+            child:Icon(Icons.delete, color: Colors.red,),
           ),
         Expanded(
           child: Row(

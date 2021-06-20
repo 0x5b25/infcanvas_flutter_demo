@@ -870,6 +870,13 @@ class _PopupWindowState extends AnimatedClosableWidgetState<PopupWindow>{
       ),
       forceUpdate: !animFinished,
       onPositioning: _PositioningFn,
+      onSizing: (lps){
+        var childConstraints = BoxConstraints(
+            maxWidth: min(lps.widgetSize.width,lps.stackSize.width),
+            maxHeight:min(lps.widgetSize.height,lps.stackSize.height),
+        );
+        return childConstraints;
+      },
     );
   }
 }

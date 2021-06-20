@@ -23,6 +23,7 @@ import 'package:infcanvas/widgets/functional/multi_drag.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
 import 'package:infcanvas/widgets/functional/tree_view.dart';
 import 'package:infcanvas/widgets/tool_window/color_picker.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 import 'package:infcanvas/widgets/visual/sliders.dart';
 import 'package:path/path.dart';
 import 'package:provider/provider.dart';
@@ -99,7 +100,7 @@ class AsyncPopupButton<T> extends StatefulWidget {
 
   final Widget Function(
     BuildContext,
-    void Function([T?])
+    Future<void> Function([T?])
   ) popupBuilder;
 
   @override
@@ -114,9 +115,9 @@ class _AsyncPopupButtonState<T> extends State<AsyncPopupButton<T>> {
     var c = Completer<T?>();
     var entry = PopupProxyConfig();
 
-    _ClsFn([T? val]){
-      c.complete(val);
-      entry.Close();
+    _ClsFn([T? val])async{
+      await entry.Close();
+      //c.complete(val);
     }
 
     var animCtrl = AnimatedCloseNotifier();
@@ -129,11 +130,11 @@ class _AsyncPopupButtonState<T> extends State<AsyncPopupButton<T>> {
       );
     };
 
-    entry.onRemove = (){
-      if(!c.isCompleted){
+    entry.onRemove = ()async{
+      await animCtrl.NotifyClose();
+      //if(!c.isCompleted){
         c.complete(null);
-      }
-      return animCtrl.NotifyClose();
+      //}
     };
 
     ToolViewManager.of(ctx)?.popupManager.ShowPopup(entry);
@@ -148,53 +149,6 @@ class _AsyncPopupButtonState<T> extends State<AsyncPopupButton<T>> {
       child: widget.builder(context, ()=>_ShowPopup(context))
     );
   }
-}
-
-class CVPainter extends CustomPainter{
-  final Offset origin;
-  final ui.Image? img;
-  CVPainter(this.img, this.origin);
-  @override
-  void paint(Canvas canvas, Size size) {
-    double step = 40;
-
-    var xOrigin = origin.dx % step;
-    var yOrigin = origin.dy % step;
-
-    var xStart = xOrigin - step;
-    var yStart = yOrigin - step;
-
-    var w = step/2;
-    for(var x = xStart; x <= size.width; x+=step){
-      for(var y = yStart; y <= size.width; y+=step){
-
-        var cx = x + w;
-        var cy = y + w;
-        canvas.drawRect(Rect.fromLTWH(x, y, w, w), Paint()..color = Colors.grey);
-        canvas.drawRect(Rect.fromLTWH(cx, y, w, w), Paint()..color = Colors.grey[600]!);
-        canvas.drawRect(Rect.fromLTWH(x, cy, w, w), Paint()..color = Colors.grey[600]!);
-        canvas.drawRect(Rect.fromLTWH(cx, cy, w, w), Paint()..color = Colors.grey);
-      }
-    }
-
-    //print("Cursor pos: ${touchPoint}");
-    Paint paint = Paint();
-
-    //cp.tree.DrawTreeToCanvas(canvas, size, cp.offset,cp.height);
-    if(img != null){
-      canvas.drawImage(img!, Offset.zero, paint);
-    }
-
-
-    //p.shader = shaderProg.GenerateShader(uniforms);
-    //canvas.drawRect(Rect.fromCenter(center:Offset.zero, width: 480, height: 480),p );
-    paint.color = Color.fromARGB(255, 0, 255, 0);
-    canvas.drawCircle(origin, 3, paint);
-    //canvas.drawRect(Rect.fromLTWH(-cp.offset.dx, -cp.offset.dy, 50, 50), p);
-  }
-  @override
-  bool shouldRepaint(oldDelegate) => true;
-
 }
 
 class ColorIndicatorPainter extends CustomPainter{
@@ -553,13 +507,13 @@ class BrushInputOverlay extends ToolOverlayEntry{
           )
         );
       }else{
-        return TextButton(
+        return SizedTextButton(
           onPressed: (){
             tool.SelectQuickAccess(idx);
             tool.ScheduleSaveState();
             manager.Repaint();
           },
-          onLongPress: showCtxMenu,
+          onLongPressed: showCtxMenu,
           child: entry.brush.thumbnail!
         );
       }
@@ -659,18 +613,22 @@ class BrushInputOverlay extends ToolOverlayEntry{
         ),
         AspectRatio(
           aspectRatio: 1,
-          child: AsyncPopupButton<ui.PipelineDesc>(
+          child: AsyncPopupButton(
             builder:(ctx, fn){
               return TextButton(
                 onPressed: (){
-                  fn().then((_){tool._RefreshQuickAccess();});
+                  fn().then((_){
+                    tool._RefreshQuickAccess();
+                  });
                 },
                 child: Icon(Icons.add)
               );
             },
             popupBuilder: (ctx, retFn){
-              return Container(
-                width: 240, height: 400,
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 240, maxHeight: 400
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(4.0),
                   child: BrushManagerWidget(
@@ -691,7 +649,7 @@ class BrushInputOverlay extends ToolOverlayEntry{
         ),
         AspectRatio(
           aspectRatio: 1,
-          child: TextButton(
+          child: SizedTextButton(
             onPressed: (){
               tool.colorTool.ShowColorPicker();
             },

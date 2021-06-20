@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:infcanvas/widgets/functional/popup.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 import 'package:infcanvas/widgets/visual/text_input.dart';
 
 abstract class ContentAction{
@@ -82,12 +83,10 @@ class RectIconButton extends StatelessWidget{
   }):super(key: key);
 
   Widget build(ctx){
-    return SizedBox(
+    return SizedTextButton(
       width: 30, height: 30,
-      child: TextButton(
-        child: Icon(icon,size: 20,color: iconColor,),
-        onPressed: onPressed,
-      ),
+      child: Icon(icon,size: 20,color: iconColor,),
+      onPressed: onPressed,
     );
   }
 

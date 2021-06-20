@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 
 
 class InputBox extends StatelessWidget {
@@ -31,7 +32,7 @@ class InputBox extends StatelessWidget {
             const Radius.circular(4.0),
           ),
         ),
-        suffixIcon: TextButton(
+        suffixIcon: SizedTextButton(
           child:Icon(Icons.close ,),
           onPressed: (){
             var val = _ctrl.text;

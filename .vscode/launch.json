@@ -18,6 +18,12 @@
             "type": "dart",
             "args": ["--local-engine=host_debug", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
         },
-        
+        {
+            "name": "Flutter Run Android",
+            "request": "launch",
+            "flutterMode": "debug",
+            "type": "dart",
+            "args": ["--local-engine=android_debug_x86", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
+        },
     ]
 }

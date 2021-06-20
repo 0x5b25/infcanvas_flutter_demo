@@ -16,6 +16,7 @@ import 'package:infcanvas/widgets/functional/any_drag.dart';
 import 'package:infcanvas/widgets/functional/floating.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
 import 'package:infcanvas/widgets/tool_window/color_picker.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 import 'package:infcanvas/widgets/visual/sliders.dart';
 import 'package:provider/provider.dart';
 import 'package:reorderables/reorderables.dart';
@@ -125,6 +126,8 @@ class CVPainter extends CustomPainter{
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+
     var cvW = size.width * (canvasScale - 1);
     var cvH = size.height * (canvasScale - 1);
 
@@ -386,8 +389,11 @@ class _LayerEntry extends StatefulWidget{
 
   final ui.CanvasLayerWrapper layer;
   final _LayerManagerWidgetState window;
+  final Listenable? repaint;
 
-  _LayerEntry(Key key, this.layer, this.window):super(key: key);
+  _LayerEntry(Key key, this.layer, this.window,
+    [this.repaint]
+  ):super(key: key);
 
   @override
   _LayerEntryState createState() => _LayerEntryState();
@@ -420,6 +426,8 @@ class _LayerEntryState extends State<_LayerEntry> {
   void RemoveLayer(){
     widget.window.RemoveLayer(widget.layer);
   }
+
+ 
 
   late final _menu = CustomMenuPage(
     name: 'Layer Menu',
@@ -576,43 +584,39 @@ class _LayerEntryState extends State<_LayerEntry> {
                         ),
                         Positioned(
                           top: 0, right: 0,
-                          child: SizedBox(
+                          child: SizedTextButton(
                             width: 24,
                             height: 24,
-                            child: TextButton(
-                                child: Icon(
-                                  widget.layer.isEnabled ? Icons.lock_open : Icons
-                                      .lock,
-                                  size: 18,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    widget.layer.isEnabled =
-                                    !widget.layer.isEnabled;
-                                  });
-                                }
+                            child: Icon(
+                              widget.layer.isEnabled ? Icons.lock_open : Icons
+                                  .lock,
+                              size: 18,
                             ),
+                            onPressed: () {
+                              setState(() {
+                                widget.layer.isEnabled =
+                                !widget.layer.isEnabled;
+                              });
+                            }
                           ),
                         ),
                         Positioned(
                           bottom: 0, right: 0,
-                          child: SizedBox(
+                          child: SizedTextButton(
                             width: 24,
                             height: 24,
-                            child: TextButton(
-                                child: Icon(
-                                  widget.layer.isVisible ? Icons.visibility : Icons
-                                      .visibility_off_outlined,
-                                  size: 18,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    widget.layer.isVisible =
-                                    !widget.layer.isVisible;
-                                    _NotifyOverlayUpdate();
-                                  });
-                                }
+                            child: Icon(
+                              widget.layer.isVisible ? Icons.visibility : Icons
+                                  .visibility_off_outlined,
+                              size: 18,
                             ),
+                            onPressed: () {
+                              setState(() {
+                                widget.layer.isVisible =
+                                !widget.layer.isVisible;
+                                _NotifyOverlayUpdate();
+                              });
+                            }
                           ),
                         ),
                         
@@ -628,15 +632,42 @@ class _LayerEntryState extends State<_LayerEntry> {
     );
   }
 
-  void _NotifyParentUpdate(){
-    var state = context.findAncestorStateOfType<_LayerManagerWidgetState>();
-    if(state != null && state.mounted)
-      state.setState(() {});
-  }
-
   void _NotifyOverlayUpdate(){
     tool.NotifyOverlayUpdate();
   }
+
+  void _NotifyParentUpdate(){
+    widget.window.setState(() {
+      
+    });
+  }
+
+  void _RepaintCallback(){
+    setState(() {
+      
+    });
+  }
+
+  @override void initState() {
+    super.initState();
+    widget.repaint?.addListener(_RepaintCallback);
+  }
+  @override void didUpdateWidget(oldWidget){
+    super.didUpdateWidget(oldWidget);
+    if(widget.repaint != oldWidget.repaint){
+      oldWidget.repaint?.removeListener(_RepaintCallback);
+      widget.repaint?.addListener(_RepaintCallback);
+    }
+    if(widget.layer != oldWidget.layer){
+      oldWidget.layer.Dispose();
+    }
+  }
+  @override void dispose() {
+    super.dispose();
+    widget.layer.Dispose();
+    widget.repaint?.removeListener(_RepaintCallback);
+  }
+
 }
 
 class _BGColorIndicator extends CustomPainter{
@@ -700,21 +731,30 @@ class _BackgroundColorSelectorState extends State<_BackgroundColorSelector> {
               ),
               Positioned(
                 right: 0,
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: TextButton(
-                      child: Icon(
-                        widget.tool.showBgColor ? Icons.visibility : Icons
-                            .visibility_off_outlined,
-                        size: 18,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          widget.tool.showBgColor =
-                          !widget.tool.showBgColor;
-                        });
-                      }
+                child: Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white70.withOpacity(0.8),
+                        spreadRadius:0,
+                        blurRadius: 10
+                      )
+                    ]
+                  ),
+                  child: SizedTextButton(
+                    width: 24,
+                    height: 24,
+                    child: Icon(
+                      widget.tool.showBgColor ? Icons.visibility : Icons
+                          .visibility_off_outlined,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        widget.tool.showBgColor =
+                        !widget.tool.showBgColor;
+                      });
+                    }                  
                   ),
                 ),
               ),
@@ -745,7 +785,7 @@ class _LayerManagerWidgetState extends State<LayerManagerWidget> {
     widget.tool.RecordCommand(
       CanvasLayerMergeCommand(layer.index)
     );
-    tool.NotifyCVUpdate();
+    tool.NotifyOverlayUpdate();
     setState((){});
   }
 
@@ -754,7 +794,7 @@ class _LayerManagerWidgetState extends State<LayerManagerWidget> {
     widget.tool.RecordCommand(
       CanvasLayerDupCommand(layer.index)
     );
-    tool.NotifyCVUpdate();
+    tool.NotifyOverlayUpdate();
     setState((){});
   }
 
@@ -803,8 +843,10 @@ class _LayerManagerWidgetState extends State<LayerManagerWidget> {
                 },
                 children: <Widget>[
                   for(var l in layers)
-                    _LayerEntry(Key("_layerman_entry_#${l.index}"),l,this),
-
+                    _LayerEntry(
+                      Key("_layerman_entry_#${l.index}"),l,this,
+                      tool._thumbUpdateNotifier
+                    ),
                 ]
               ),
             ),
@@ -1066,7 +1108,7 @@ class InfCanvasViewer extends CanvasTool{
       if(_activeLayerIdx >= cvInstance.LayerCount()){
         _activeLayerIdx = -1;
       }
-      NotifyCVUpdate();
+      NotifyOverlayUpdate();
     });
 
     _model = Provider.of<AppModel>(ctx, listen: false);
@@ -1217,11 +1259,11 @@ class InfCanvasViewer extends CanvasTool{
   }
 
   ///Repaint both viewport and layer manager
-  void NotifyCVUpdate(){
-    NotifyOverlayUpdate();
-    //manager.Repaint();
-  }
-
+  //void NotifyCVUpdate(){
+  //  NotifyOverlayUpdate();
+  //  //manager.Repaint();
+  //}
+  final _thumbUpdateNotifier = ChangeNotifier();
   late final _snapshotTaskRunner = SequentialTaskGuard<ui.Picture>(
     (req)async{
       //Gather info
@@ -1239,7 +1281,8 @@ class InfCanvasViewer extends CanvasTool{
       var img = await _cvInstance.GenSnapshot(
           p.offset, lod, w, h);
       _overlay._DrawSnapshot(img, delta, scale);
-      _layerMgrWnd._NotifyUpdate();
+      //_layerMgrWnd._NotifyUpdate();
+      _thumbUpdateNotifier.notifyListeners();
       return img;
     },
     "CanvasSnapshotTask"

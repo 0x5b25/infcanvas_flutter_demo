@@ -345,8 +345,10 @@ class _ShaderFnEditorState extends State<ShaderFnEditor> {
                 )),
 
                 FloatingWindow(
+                  height: 30,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if(compact)
                       TextButton(
@@ -362,8 +364,10 @@ class _ShaderFnEditorState extends State<ShaderFnEditor> {
                 FloatingWindow(
                   anchor: Rect.fromLTRB(1,0,1,0),
                   align: Offset(1,0),
+                  height: 30,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
 
                       PopupBuilder<ShaderFunction>(

@@ -233,7 +233,7 @@ class FileUtil extends CanvasTool{
       );
       return;
     }finally{
-      _cvTool.NotifyCVUpdate();
+      _cvTool.NotifyOverlayUpdate();
       Navigator.of(manager.state.context).pop(); 
     };
   }

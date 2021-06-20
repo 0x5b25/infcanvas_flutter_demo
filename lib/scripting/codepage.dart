@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:infcanvas/scripting/graph_compiler.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 
 import '../widgets/functional/floating.dart';
 import 'script_graph.dart';
@@ -671,40 +672,43 @@ class NodeSelPopup extends StatelessWidget{
                   Expanded(
                     child: Text("New...")
                   ),
-                  Container(
+                  SizedTextButton(
                     width: 30, height: 30,
-                    child: TextButton(
-                      onPressed:(){
+                    onPressed:(){
                         var cps = context.findRootAncestorStateOfType<_CodePageState>();
                         cps?.CloseNodeSelPopup();
                       }, 
-                      child: Icon(Icons.close)
-                    ),
+                    child: Icon(Icons.close)
                   )
                 ],),
               ),
             ),
             Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for(var fn in availNodes)
-                    GestureDetector(
-                      onTap: (){DoNodeSelection(fn);},
-                      child: Row(
-                        children:[
-                          Text(fn.node.displayName),
-                          Expanded(
-                            child: Text(fn.category,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(fontStyle: FontStyle.italic),
-                            )
-                          ),
-                        ]
-                      )
-                    ),
-                ],
+              child: Scrollbar(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for(var fn in availNodes)
+                      Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: GestureDetector(
+                          onTap: (){DoNodeSelection(fn);},
+                          child: Row(
+                            children:[
+                              Text(fn.node.displayName),
+                              Expanded(
+                                child: Text(fn.category,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.right,
+                                  style: TextStyle(fontStyle: FontStyle.italic),
+                                )
+                              ),
+                            ]
+                          )
+                        ),
+                      ),
+                  ],
+                ),
               ),
             )
             
@@ -829,15 +833,13 @@ class _PNodeState extends State<PNode> {
                     child: Text(widget.drawableNode.displayName)
                   ),
                   if(closable)
-                    Container(
+                    SizedTextButton(
                       width: 30, height: 30,
-                      child: TextButton(
-                        onPressed:(){
+                      onPressed:(){
                           var cps = context.findRootAncestorStateOfType<_CodePageState>();
                           cps?.RemoveNode(widget.drawableNode);
                         }, 
-                        child: Icon(Icons.close)
-                      ),
+                      child: Icon(Icons.close)
                     )
                 ],),
               ),

@@ -16,6 +16,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:infcanvas/canvas/canvas_widget.dart';
 import 'package:infcanvas/utilities/storage/app_model.dart';
 import 'package:infcanvas/scripting/brush_editor.dart';
@@ -31,12 +32,33 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight
+    ]);
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: SafeArea(
+        child: Navigator(
+          initialRoute: '/',
+          onGenerateRoute: (settings){
+            late Widget page;
+            
+            page = MyHomePage(title: 'Flutter Demo Home Page');
+
+            return MaterialPageRoute<dynamic>(
+              builder: (context) {
+                return page;
+              },
+              settings: settings,
+            );
+          }
+        )
+      ),
     );
   }
 }

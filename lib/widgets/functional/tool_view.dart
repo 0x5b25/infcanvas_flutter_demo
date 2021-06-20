@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:infcanvas/widgets/functional/anchor_stack.dart';
 import 'package:infcanvas/widgets/functional/floating.dart';
+import 'package:infcanvas/widgets/visual/buttons.dart';
 
 
 
@@ -591,7 +592,7 @@ class ToolWindow extends ReorderableToolConfig<ToolWindowManager>
                 ),
                 Container(
                     width: 30,
-                    child: TextButton(child: Icon(Icons.close),onPressed: Close,)
+                    child: SizedTextButton(child: Icon(Icons.close),onPressed: Close,)
                 )
               ],
             ),
@@ -1239,12 +1240,15 @@ class SubMenu extends MenuPage{
   }
 
   @override BuildContent(bctx, mctx) {
-    return Center(
-      child: Wrap(
-        runSpacing: 10,
-        children: [
-          for(var i in items) _BuildEntry(i, mctx, bctx)
-        ],
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 240),
+      child: Center(
+        child: Wrap(
+          runSpacing: 10,
+          children: [
+            for(var i in items) _BuildEntry(i, mctx, bctx)
+          ],
+        ),
       ),
     );
   }
@@ -1472,6 +1476,7 @@ class _MenuBarState extends ControlledWidgetState<MenuBar> {
         height: 30,
         child: TextButton(
           style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
             backgroundColor: BackgroundColor(manager.root.isActivated, context)
           ),
           child: Icon(Icons.settings_outlined),

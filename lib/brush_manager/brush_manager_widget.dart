@@ -212,18 +212,15 @@ Future<BrushData?> CreateBrush(BuildContext ctx){
   _BuildSelection(icon,label,fn){
     return TextButton(
       onPressed: fn,
-      child: SizedBox(
-        width: 100,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: Icon(icon),
-            ),
-            Text(label, textAlign: TextAlign.center,),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Icon(icon),
+          ),
+          Text(label, textAlign: TextAlign.center,),
+        ],
       )
     );
   }

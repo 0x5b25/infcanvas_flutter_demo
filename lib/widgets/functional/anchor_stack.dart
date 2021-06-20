@@ -604,7 +604,7 @@ class AnchorStackRO extends RenderBox
       else{
         //Needs alignment to position child
         ct = ay - ch * childParentData.alignY;
-        cr = ay + ch * (1-childParentData.alignY);
+        cb = ay + ch * (1-childParentData.alignY);
       }
     }
 

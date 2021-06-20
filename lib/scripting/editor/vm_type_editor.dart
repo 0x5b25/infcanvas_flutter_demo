@@ -250,8 +250,10 @@ class _MethodBodyEditorState extends State<MethodBodyEditor> {
           )),
 
           FloatingWindow(
+            height: 30,
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for(var op in widget.customOps)
                   TextButton(
@@ -264,9 +266,11 @@ class _MethodBodyEditorState extends State<MethodBodyEditor> {
 
           FloatingWindow(
             anchor: Rect.fromLTRB(1,0,1,0),
+            height: 30,
             align: Offset(1,0),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 PopupBuilder<CodeMethod>(
                   data: widget.method,
