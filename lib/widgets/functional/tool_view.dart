@@ -408,6 +408,13 @@ class ToolOverlayManager extends WidgetController<ToolOverlayView>{
     return ro?.size??Size.zero;
   }
 
+  Offset GlobalToLocal(Offset worldPos){
+    if(!isInstalled) return worldPos;
+    var s = state;
+    var ro = s.context.findRenderObject() as RenderBox?;
+    return ro?.globalToLocal(worldPos)??worldPos;
+  }
+
   void RoutePointer(PointerEvent e) {
     //Route pointer from top to bottom
     for(var o in overlay.reversed){

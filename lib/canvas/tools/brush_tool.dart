@@ -925,6 +925,13 @@ class BrushTool extends CanvasTool{
     ScheduleSaveState();
   }
 
+  ///Global: entire ui space
+  ///Screen: overlay widget space
+  ///World: Canvas space
+  Offset GlobalToScreen(Offset pos){
+    return manager.overlayManager.GlobalToLocal(pos);
+  }
+
   Offset ScreenToLocal(Offset pos){
     var canvasScale = canvasParam.canvasScale;
     var overlaySize = manager.overlayManager.overlaySize;
@@ -987,11 +994,12 @@ class BrushTool extends CanvasTool{
   _OnDragUpdate(DetailedDragUpdate d, StepRegister<StrokeHolder>? o){
     if(o == null) return;
     var p = d.pointerEvent;
-    var pos = ScreenToLocal(p.localPosition);
+    var pointerPos = GlobalToScreen(p.position);
+    var pos = ScreenToLocal(pointerPos);
     var velocity = d.velocity.pixelsPerSecond;
     var pressure = (p.pressure - p.pressureMin)/(p.pressureMax - p.pressureMin);
     pressure = pressure.clamp(0, 1);
-
+    
     var cvCenter = cvTool.offset;
 
     o.Move(pos, (holder, pos ) {
