@@ -200,6 +200,7 @@ class _VMEnvExplorerState extends State<VMEnvExplorer> {
 
   void ShowNewReusableDialog(){
     showDialog(
+      useRootNavigator: false,
       context: context, 
       barrierDismissible: false,
       builder: (ctx){return NewLibDialog(
@@ -219,6 +220,7 @@ class _VMEnvExplorerState extends State<VMEnvExplorer> {
   
   void ShowNewRenderableDialog(){
     showDialog(
+      useRootNavigator: false,
       context: context, 
       barrierDismissible: false,
       builder: (ctx){return NewLibDialog(

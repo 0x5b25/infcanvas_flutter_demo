@@ -117,6 +117,7 @@ class _VMLibInspectorState extends State<VMLibInspector> {
   void ShowDepSelPanel(){
     var availDeps = widget.env.LoadedLibs();
     showDialog(
+      useRootNavigator: false,
       context:context,
       builder:(ctx){
         return Dialog(

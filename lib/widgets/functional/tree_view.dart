@@ -526,6 +526,7 @@ class _TreeViewWidgetState<T extends IContentProvider> extends State<TreeViewWid
 
   _RemoveNode(IContent node)async{
     var result = await showDialog(
+      useRootNavigator: false,
       context: context, builder: (ctx)=>AlertDialog(
         title: Text("Delete $node"),
         content:Text("Are you sure to delete $node?"),

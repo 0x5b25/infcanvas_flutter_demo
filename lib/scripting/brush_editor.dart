@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 import 'package:file_selector/file_selector.dart';
 import 'package:infcanvas/scripting/code_element.dart';
+import 'package:infcanvas/utilities/storage/file_helper.dart';
 import 'package:infcanvas/utilities/type_helper.dart';
 import 'package:infcanvas/widgets/visual/sliders.dart';
 import 'package:path/path.dart' as p;
@@ -702,6 +703,7 @@ class _BrushEditorState extends State<BrushEditor>{
     List<String> body,
   ) async {
     return showDialog<void>(
+      useRootNavigator: false,
       context: context,
       barrierDismissible: false, // user must tap button!
       builder: (BuildContext context) {
@@ -737,16 +739,22 @@ class _BrushEditorState extends State<BrushEditor>{
       var dirPath = Directory.current.path;
       final filename = "${data.name}.json";
 
-      final typeGroup = XTypeGroup(label: 'brush data', extensions: ['json']);
-      getSavePath(acceptedTypeGroups: [typeGroup], suggestedName: filename)
+      final typeGroup = TypeGroup(label: 'brush data', extensions: ['json']);
+      SelectExistingFolder(defaultName: filename)
       .then((path)async{
         if(path == null)
           throw Exception("Path can't be null");
-        var file = XFile.fromData(
-            Uint8List.fromList(utf8Str),
-            path: p.join(dirPath, filename)
+        var dir = Directory(path);
+        var fileName = await ShowFileSaveNamingDialog(
+          context, dir,
+          defaultName: "brush",
+          extension: ".json",
         );
-        await file.saveTo(path);
+        if(fileName == null) return;
+        fileName = p.setExtension(filename, ".json");
+
+        var file = File(p.join(dirPath, filename));
+        await file.writeAsBytes(utf8Str);
         _showMyDialog(
             "Export successful",
             [
@@ -766,12 +774,12 @@ class _BrushEditorState extends State<BrushEditor>{
   }
 
   void ImportBrush(){
-    final typeGroup = XTypeGroup(label: 'brush data', extensions: ['json']);
-    openFile(acceptedTypeGroups: [typeGroup]).then((file)async{
+    final typeGroup = TypeGroup(label: 'brush data', extensions: ['json']);
+    SelectExistingFile(acceptedTypeGroups: [typeGroup]).then((file)async{
       try{
         if(file == null)
           throw Exception("Can't open file");
-        var str = await file.readAsString();
+        var str = await File(file).readAsString();
         var data = jsonDecode(str);
         env.brushData = null;
         DeserializeBrushInPlace(widget.data, data);

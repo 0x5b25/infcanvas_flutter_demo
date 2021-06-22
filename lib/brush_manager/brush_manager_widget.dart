@@ -1,6 +1,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:infcanvas/brush_manager/brush_manager.dart';
 import 'package:infcanvas/brush_manager/brush_templates.dart';
 import 'package:infcanvas/scripting/brush_editor.dart';
 import 'package:infcanvas/scripting/brush_serializer.dart';
+import 'package:infcanvas/utilities/storage/file_helper.dart';
 import 'package:infcanvas/widgets/functional/tree_view.dart';
 import 'package:infcanvas/widgets/visual/text_input.dart';
 
@@ -175,13 +177,13 @@ Future<BrushData?> CreateBrushFromTemplate(_OperationPanelState state)async{
 }
 
 Future<BrushData?> ImportBrush(_OperationPanelState state)async{
-  final typeGroup = XTypeGroup(label: 'brush data', extensions: ['json']);
-
+  final typeGroup = TypeGroup(label: 'brush data', extensions: ['json']);
+  
   _ReadFromFile()async{
-    var file = await openFile(acceptedTypeGroups: [typeGroup]);    
+    var file = await SelectExistingFile(acceptedTypeGroups: [typeGroup]);
     try{
       if(file == null) return null;
-      var str = await file.readAsString();
+      var str = await File(file).readAsString();
       var data = jsonDecode(str);
       var brushData = DeserializeBrush(data);
       return [brushData, null];
@@ -226,6 +228,7 @@ Future<BrushData?> CreateBrush(BuildContext ctx){
   }
 
   return showDialog<BrushData>(
+    useRootNavigator: false,
     context: ctx, 
     builder: (ctx){
       return Dialog(

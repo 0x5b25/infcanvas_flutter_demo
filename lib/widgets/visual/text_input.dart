@@ -26,6 +26,7 @@ class InputBox extends StatelessWidget {
     return TextField(
       controller: _ctrl,
       decoration: new InputDecoration(
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
         errorText: errorMessage,
         border: new OutlineInputBorder(
           borderRadius: const BorderRadius.all(
@@ -135,6 +136,7 @@ Future<String?> RequestTextInput(BuildContext ctx, String title, {
 })async{
   var ctrl = TextEditingController(text:initialText);
   String? name = await showDialog(
+    useRootNavigator: false,
     context:  ctx,
     builder: (_)=>_ValidatableTextInput(
       title: title,

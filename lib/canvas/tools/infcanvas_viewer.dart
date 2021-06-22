@@ -245,10 +245,12 @@ class CVViewerOverlay extends ToolOverlayEntry{
   }
 
 
-  late final _panGR = AnyPanGestureRecognizer()
-    ..onUpdate = _OnPanUpdate
-    ;
+  //late final _panGR = AnyPanGestureRecognizer()
+  //  ..onUpdate = _OnPanUpdate
+  //  ;
+
   late final _zoomGR = ScaleGestureRecognizer()
+    
     ..onStart = _OnScaleStart
     ..onUpdate = _OnScaleUpdate
     ..onEnd = _OnScaleEnd
@@ -307,7 +309,7 @@ class CVViewerOverlay extends ToolOverlayEntry{
     var scaled = centered / scale;
     var center_delta = centered - scaled;
     tool.canvasParam.Scale(scale);
-    tool.Translate(center_delta + delta);
+    tool.Translate(center_delta - delta);
     tool.manager.popupManager.ShowQuickMessage(
       Text(
         "Canvas Scale : "
@@ -325,10 +327,10 @@ class CVViewerOverlay extends ToolOverlayEntry{
   bool _AcceptTouch(PointerDownEvent p){
     var canAccept = false;
 
-    if( _panGR.isPointerAllowed(p)){
-      _panGR.addPointer(p);
-      canAccept = true;
-    }
+    //if( _panGR.isPointerAllowed(p)){
+    //  _panGR.addPointer(p);
+    //  canAccept = true;
+    //}
 
     if(_zoomGR.isPointerAllowed(p)){
       _zoomGR.addPointer(p);
@@ -358,7 +360,7 @@ class CVViewerOverlay extends ToolOverlayEntry{
 
 
   @override Dispose(){
-    _panGR.dispose();
+    //_panGR.dispose();
     _zoomGR.dispose();
   }
 }

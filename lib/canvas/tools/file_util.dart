@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:infcanvas/canvas/canvas_tool.dart';
 import 'package:infcanvas/canvas/tools/infcanvas_viewer.dart';
 import 'package:infcanvas/utilities/storage/file_chunk_manager.dart';
+import 'package:infcanvas/utilities/storage/file_helper.dart';
 import 'package:infcanvas/widgets/functional/tool_view.dart';
 import 'package:path/path.dart';
 
@@ -61,27 +62,39 @@ class FileUtil extends CanvasTool{
 
   Future<void> _SaveAs()async{
     var initial = currentFile?.path;
-    final typeGroup = XTypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
-    var f = await getSavePath(
-      initialDirectory: initial,
-      acceptedTypeGroups: [typeGroup]
-    );    
+    final typeGroup = TypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
+    var f = await SelectExistingFolder(
+      defaultName: "document.ics",
+      initialPath: initial,
+      //acceptedTypeGroups: [typeGroup]
+    );
     if(f == null) return;
-    var filePath = setExtension(f,'.ics');
+    var dir = Directory(f);
+    var fileName = await ShowFileSaveNamingDialog(
+      manager.state.context, dir,
+      defaultName: "document",
+      extension: ".ics",
+    );
+    if(fileName == null) return;
+    var filePath = setExtension(fileName,'.ics');
     currentFile = File(filePath);
     
+    showDialog(
+      useRootNavigator: false,
+      context: manager.state.context, 
+      builder: (ctx){
+        return AlertDialog(
+          title: Text("Saving file"),
+        );
+      }
+    );
+
     try{
-      showDialog(
-        context: manager.state.context, 
-        builder: (ctx){
-          return AlertDialog(
-            title: Text("Saving file"),
-          );
-        }
-      );
+      
       await _SaveCV(cvInst, currentFile!);
       
       await showDialog(
+        useRootNavigator: false,
         context: manager.state.context, 
         builder: (ctx){
           return AlertDialog(
@@ -98,6 +111,7 @@ class FileUtil extends CanvasTool{
       );
     }catch(e){
       await showDialog(
+        useRootNavigator: false,
         context: manager.state.context, 
         builder: (ctx){
           return AlertDialog(
@@ -112,8 +126,8 @@ class FileUtil extends CanvasTool{
           );
         }
       );
-      return;
-    }finally{
+    }
+    {
       Navigator.of(manager.state.context).pop();
     };
   }
@@ -122,6 +136,7 @@ class FileUtil extends CanvasTool{
     if(currentFile == null) return;
     try{
       showDialog(
+        useRootNavigator: false,
         context: manager.state.context, 
         builder: (ctx){
           return AlertDialog(
@@ -133,6 +148,7 @@ class FileUtil extends CanvasTool{
       await _SaveCV(cvInst, currentFile!);
       
       await showDialog(
+        useRootNavigator: false,
         context: manager.state.context, 
         builder: (ctx){
           return AlertDialog(
@@ -149,6 +165,7 @@ class FileUtil extends CanvasTool{
       );
     }catch(e){
       await showDialog(
+        useRootNavigator: false,
         context: manager.state.context, 
         builder: (ctx){
           return AlertDialog(
@@ -170,13 +187,14 @@ class FileUtil extends CanvasTool{
   }
 
   Future<void> _Open()async{
-    final typeGroup = XTypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
-    var filePath = await openFile(acceptedTypeGroups: [typeGroup]);    
+    final typeGroup = TypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
+    var filePath = await SelectExistingFile(acceptedTypeGroups: [typeGroup]);    
     if(filePath == null) return;
 
     await showDialog(
-        context: manager.state.context, 
-        builder: (ctx){
+      useRootNavigator: false,
+      context: manager.state.context, 
+      builder: (ctx){
           return AlertDialog(
             title: Text("Save current canvas?"),
             content: Text("Or everything not saved will be lost"),
@@ -197,10 +215,11 @@ class FileUtil extends CanvasTool{
         }
       );
     manager.ClearSession();
-    currentFile = File(filePath.path);
+    currentFile = File(filePath);
     
     try{
       showDialog(
+        useRootNavigator: false,
         barrierDismissible: false,
         context: manager.state.context, 
         builder: (ctx){
@@ -217,6 +236,7 @@ class FileUtil extends CanvasTool{
     }catch(e){
       cvInst.Clear();
       await showDialog(
+        useRootNavigator: false,
         context: manager.state.context, 
         builder: (ctx){
           return AlertDialog(
