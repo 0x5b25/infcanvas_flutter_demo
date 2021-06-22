@@ -180,10 +180,10 @@ Future<BrushData?> ImportBrush(_OperationPanelState state)async{
   final typeGroup = TypeGroup(label: 'brush data', extensions: ['json']);
   
   _ReadFromFile()async{
-    var file = await SelectExistingFile(acceptedTypeGroups: [typeGroup]);
+    var file = await SelectAndReadFile(acceptedTypeGroups: [typeGroup]);
     try{
       if(file == null) return null;
-      var str = await File(file).readAsString();
+      var str = Utf8Codec().decode(file);
       var data = jsonDecode(str);
       var brushData = DeserializeBrush(data);
       return [brushData, null];

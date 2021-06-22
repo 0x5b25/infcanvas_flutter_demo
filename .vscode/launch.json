@@ -23,7 +23,7 @@
             "request": "launch",
             "flutterMode": "debug",
             "type": "dart",
-            "args": ["--local-engine=android_debug_x86", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
+            "args": ["--local-engine=android_debug_x64", "--local-engine-src-path", "D:/google/dev/flutter/engine/src", "--verbose"],
         },
     ]
 }

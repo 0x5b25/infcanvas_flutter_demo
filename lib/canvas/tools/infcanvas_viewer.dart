@@ -245,9 +245,9 @@ class CVViewerOverlay extends ToolOverlayEntry{
   }
 
 
-  //late final _panGR = AnyPanGestureRecognizer()
-  //  ..onUpdate = _OnPanUpdate
-  //  ;
+  late final _panGR = AnyPanGestureRecognizer()
+    ..onUpdate = _OnPanUpdate
+    ;
 
   late final _zoomGR = ScaleGestureRecognizer()
     
@@ -320,17 +320,15 @@ class CVViewerOverlay extends ToolOverlayEntry{
   }
 
   @override AcceptPointerInput(PointerEvent p) {
-    if(p is PointerDownEvent) return _AcceptTouch(p);
+    if(p.kind == PointerDeviceKind.touch) return _AcceptTouch(p);
     return _AcceptMouse(p);    
   }
 
-  bool _AcceptTouch(PointerDownEvent p){
+  bool _AcceptTouch(PointerEvent p){
     var canAccept = false;
 
-    //if( _panGR.isPointerAllowed(p)){
-    //  _panGR.addPointer(p);
-    //  canAccept = true;
-    //}
+    
+    if(p is! PointerDownEvent) return false;
 
     if(_zoomGR.isPointerAllowed(p)){
       _zoomGR.addPointer(p);
@@ -342,6 +340,14 @@ class CVViewerOverlay extends ToolOverlayEntry{
 
   //Handle scrollwheel
   bool _AcceptMouse(PointerEvent e){
+    if(e is PointerDownEvent){
+      if( _panGR.isPointerAllowed(e)){
+        _panGR.addPointer(e);
+        return true;
+      }
+      return false;
+    }
+
     if(e is! PointerSignalEvent) return false;
     
     if(e is! PointerScrollEvent) return false;
@@ -360,7 +366,7 @@ class CVViewerOverlay extends ToolOverlayEntry{
 
 
   @override Dispose(){
-    //_panGR.dispose();
+    _panGR.dispose();
     _zoomGR.dispose();
   }
 }
@@ -875,7 +881,9 @@ class _LayerManagerWidgetState extends State<LayerManagerWidget> {
         ),
 
 
-        TextButton(onPressed: (){
+        SizedTextButton(
+          height: 30,
+          onPressed: (){
           widget.tool.cvInstance.CreatePaintLayer();
           widget.tool.RecordCommand(CanvasLayerAddCommand());
           setState((){});
@@ -1058,7 +1066,7 @@ class InfCanvasViewer extends CanvasTool{
             height: 30,
             child: Row(children: [
               SizedBox(width:50, child: Text("LOD ", textAlign: TextAlign.center,)),
-              TextButton(
+              SizedTextButton(
                 child: Icon(Icons.remove),
                 onPressed: (){
                   if(lod <= minLod) return;
@@ -1070,7 +1078,7 @@ class InfCanvasViewer extends CanvasTool{
               Expanded(
                 child: Text(lod.toString(),textAlign:  TextAlign.center,)
               ),
-              TextButton(
+              SizedTextButton(
                 child: Icon(Icons.add),
                 onPressed: (){
                   canvasParam.Drop();

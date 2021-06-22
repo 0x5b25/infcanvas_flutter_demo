@@ -740,29 +740,20 @@ class _BrushEditorState extends State<BrushEditor>{
       final filename = "${data.name}.json";
 
       final typeGroup = TypeGroup(label: 'brush data', extensions: ['json']);
-      SelectExistingFolder(defaultName: filename)
-      .then((path)async{
-        if(path == null)
-          throw Exception("Path can't be null");
-        var dir = Directory(path);
-        var fileName = await ShowFileSaveNamingDialog(
-          context, dir,
-          defaultName: "brush",
-          extension: ".json",
-        );
-        if(fileName == null) return;
-        fileName = p.setExtension(filename, ".json");
 
-        var file = File(p.join(dirPath, filename));
-        await file.writeAsBytes(utf8Str);
-        _showMyDialog(
-            "Export successful",
-            [
-              "Exported to:",
-              path
-            ]
-        );
-      });
+      ExportFile(Uint8List.fromList(utf8Str), filename);
+      //.then((path)async{
+      //  if(path == null)
+      //    throw Exception();
+      //  
+      //  _showMyDialog(
+      //      "Export successful",
+      //      [
+      //        "Exported to:",
+      //        path
+      //      ]
+      //  );
+      //});
 
     }
     catch(e){
@@ -775,11 +766,11 @@ class _BrushEditorState extends State<BrushEditor>{
 
   void ImportBrush(){
     final typeGroup = TypeGroup(label: 'brush data', extensions: ['json']);
-    SelectExistingFile(acceptedTypeGroups: [typeGroup]).then((file)async{
+    SelectAndReadFile(acceptedTypeGroups: [typeGroup]).then((fileContent)async{
       try{
-        if(file == null)
+        if(fileContent == null)
           throw Exception("Can't open file");
-        var str = await File(file).readAsString();
+        var str = Utf8Codec().decode(fileContent);
         var data = jsonDecode(str);
         env.brushData = null;
         DeserializeBrushInPlace(widget.data, data);

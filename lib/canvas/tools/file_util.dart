@@ -4,9 +4,13 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:file/memory.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'package:file/file.dart' as mf;
+
 import 'package:infcanvas/canvas/canvas_tool.dart';
 import 'package:infcanvas/canvas/tools/infcanvas_viewer.dart';
 import 'package:infcanvas/utilities/storage/file_chunk_manager.dart';
@@ -63,21 +67,20 @@ class FileUtil extends CanvasTool{
   Future<void> _SaveAs()async{
     var initial = currentFile?.path;
     final typeGroup = TypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
-    var f = await SelectExistingFolder(
-      defaultName: "document.ics",
-      initialPath: initial,
-      //acceptedTypeGroups: [typeGroup]
-    );
-    if(f == null) return;
-    var dir = Directory(f);
-    var fileName = await ShowFileSaveNamingDialog(
-      manager.state.context, dir,
-      defaultName: "document",
-      extension: ".ics",
-    );
-    if(fileName == null) return;
-    var filePath = setExtension(fileName,'.ics');
-    currentFile = File(filePath);
+    //var f = await SelectExistingFolder(
+    //  defaultName: "document.ics",
+    //  initialPath: initial,
+    //  //acceptedTypeGroups: [typeGroup]
+    //);
+    //if(f == null) return;
+    //var dir = Directory(f);
+    //var fileName = await ShowFileSaveNamingDialog(
+    //  manager.state.context, dir,
+    //  defaultName: "document",
+    //  extension: ".ics",
+    //);
+    //if(fileName == null) return;
+    //var filePath = join(f,setExtension(fileName,'.ics'));
     
     showDialog(
       useRootNavigator: false,
@@ -90,26 +93,34 @@ class FileUtil extends CanvasTool{
     );
 
     try{
+      //currentFile = await File(filePath).create(recursive: true);
+      var file = MemoryFileSystem().file('temp');
+      await _SaveCV(cvInst, file);
+
+      var data = await file.readAsBytes();
+
+      var result = await ExportFile(data, "document.ics");
       
-      await _SaveCV(cvInst, currentFile!);
-      
-      await showDialog(
-        useRootNavigator: false,
-        context: manager.state.context, 
-        builder: (ctx){
-          return AlertDialog(
-            title: Text("File saved"),
-            content: Text("path:$filePath"),
-            actions: [
-              TextButton(
-                child: Text("OK"),
-                onPressed:(){Navigator.of(ctx).pop();}
-              )
-            ],
-          );
-        }
-      );
+      //if(result != null){
+      //  await showDialog(
+      //    useRootNavigator: false,
+      //    context: manager.state.context, 
+      //    builder: (ctx){
+      //      return AlertDialog(
+      //        title: Text("File saved"),
+      //        content: Text("path:$result"),
+      //        actions: [
+      //          TextButton(
+      //            child: Text("OK"),
+      //            onPressed:(){Navigator.of(ctx).pop();}
+      //          )
+      //        ],
+      //      );
+      //    }
+      //  );
+      //}
     }catch(e){
+      currentFile = null;
       await showDialog(
         useRootNavigator: false,
         context: manager.state.context, 
@@ -187,10 +198,7 @@ class FileUtil extends CanvasTool{
   }
 
   Future<void> _Open()async{
-    final typeGroup = TypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
-    var filePath = await SelectExistingFile(acceptedTypeGroups: [typeGroup]);    
-    if(filePath == null) return;
-
+    
     await showDialog(
       useRootNavigator: false,
       context: manager.state.context, 
@@ -215,24 +223,33 @@ class FileUtil extends CanvasTool{
         }
       );
     manager.ClearSession();
-    currentFile = File(filePath);
-    
+    //currentFile = File(filePath);
+    showDialog(
+      useRootNavigator: false,
+      barrierDismissible: false,
+      context: manager.state.context, 
+      builder: (ctx){
+        return AlertDialog(
+          title: Text("Loading file"),
+          actions: [
+            
+          ],
+        );
+      }
+    );
+
     try{
-      showDialog(
-        useRootNavigator: false,
-        barrierDismissible: false,
-        context: manager.state.context, 
-        builder: (ctx){
-          return AlertDialog(
-            title: Text("Loading file"),
-            actions: [
-              
-            ],
-          );
-        }
-      );
+      
       _cvTool.canvasParam = CanvasParam();
-      await _ReadCV(cvInst, currentFile!);
+
+      final typeGroup = TypeGroup(label: 'InfCanvas Document', extensions: ['.ics']);
+      var data = await SelectAndReadFile(acceptedTypeGroups: [typeGroup]);    
+      if(data != null){
+        var f = MemoryFileSystem().file('temp');
+        f.writeAsBytesSync(data);
+
+        await _ReadCV(cvInst, f);
+      }
     }catch(e){
       cvInst.Clear();
       await showDialog(
@@ -251,11 +268,10 @@ class FileUtil extends CanvasTool{
           );
         }
       );
-      return;
     }finally{
       _cvTool.NotifyOverlayUpdate();
-      Navigator.of(manager.state.context).pop(); 
     };
+    Navigator.of(manager.state.context).pop(); 
   }
 
   static Future<void> _SaveCV(CanvasInstance cv, File f)async{

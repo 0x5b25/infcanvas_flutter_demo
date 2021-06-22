@@ -1,8 +1,9 @@
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker_cross/file_picker_cross.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:infcanvas/widgets/visual/text_input.dart';
@@ -50,45 +51,93 @@ class TypeGroup{
   });
 }
 
+Future<Uint8List?> SelectAndReadFile({
+  String? initialPath,
+  List<TypeGroup> acceptedTypeGroups = const [],
+})async{
+  List<String>? exts;
+  if(acceptedTypeGroups.isNotEmpty){
+    var ext = <String>{};
+    for(var a in acceptedTypeGroups){
+      if(a.extensions != null){
+        for(var e in a.extensions!){
+          var trimmed = e.replaceFirst(RegExp(r'^\.'), '');
+          ext.add(trimmed);
+        }
+      }
+    }
+    exts = ext.toList();
+  }
+  try{
+    var res = 
+    exts == null?await FilePickerCross.importFromStorage():
+    await FilePickerCross.importFromStorage(
+      type: FileTypeCross.custom,
+      fileExtension: (exts.join(','))
+    );
+    var data = res.toUint8List();
+    return data;
+  }catch(e){
+    //mabe caused by permission denied or user cancellation
+    debugPrint(e.toString());
+  }
+
+  return null;
+}
+
+Future<String?> ExportFile(
+  Uint8List data,
+  String defaultName,
+)async{
+  var f = FilePickerCross(data);
+  try{
+    var path = await f.exportToStorage(fileName: defaultName);
+
+    return path??'';
+  }catch(e){
+    //mabe caused by permission denied or user cancellation
+    debugPrint(e.toString());
+  }
+}
 
 ///Show dialog to choose existing file or folders
 ///return null if canceled
-Future<String?> SelectExistingFile(
-{
-  String? initialPath,
-  List<TypeGroup> acceptedTypeGroups = const [],
-}
-)async{
-  String? path;
-  if(_USE_FILE_SELECTOR){
-    var g = <XTypeGroup>[];
-    for(var a in acceptedTypeGroups){
-      g.add(XTypeGroup(label: a.label, extensions: a.extensions));
-    }
-
-    var filePath = await openFile(initialDirectory: initialPath, acceptedTypeGroups: g);
-    path = filePath?.path;
-  }else{
-    FilePickerResult? result;
-    if(acceptedTypeGroups.isEmpty){
-      result = await FilePicker.platform.pickFiles();
-    }else{
-      var ext = <String>{};
-      for(var a in acceptedTypeGroups){
-        if(a.extensions != null)
-          ext.addAll(a.extensions!);
-      }
-      result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ext.toList()
-      );
-    }
-    path = result?.paths.single;
-  }
-  return path;
-}
-
-
+//Future<String?> SelectExistingFile(
+//{
+//  String? initialPath,
+//  List<TypeGroup> acceptedTypeGroups = const [],
+//}
+//)async{
+//  String? path;
+//  if(_USE_FILE_SELECTOR){
+//    var g = <XTypeGroup>[];
+//    for(var a in acceptedTypeGroups){
+//      g.add(XTypeGroup(label: a.label, extensions: a.extensions));
+//    }
+//
+//    var filePath = await openFile(initialDirectory: initialPath, acceptedTypeGroups: g);
+//    path = filePath?.path;
+//  }else{
+//    FilePickerResult? result;
+//    if(acceptedTypeGroups.isEmpty){
+//      result = await FilePicker.platform.pickFiles();
+//    }else{
+//      var ext = <String>{};
+//      for(var a in acceptedTypeGroups){
+//        if(a.extensions != null)
+//          ext.addAll(a.extensions!);
+//      }
+//      result = await FilePicker.platform.pickFiles(
+//        type: FileType.custom,
+//        allowedExtensions: ext.toList()
+//      );
+//    }
+//    path = result?.paths.single;
+//  }
+//  return path;
+//}
+//
+//
 //Future<String?> SelectExistingFolder(
 //{
 //  String? initialPath,
@@ -100,38 +149,38 @@ Future<String?> SelectExistingFile(
 //}
 
 
-Future<String?> SelectExistingFolder(
-{
-  String? defaultName,
-  String? initialPath,
-  //List<TypeGroup> acceptedTypeGroups = const [],
-}
-)async{
-  String? path;
-  if(_USE_FILE_SELECTOR){
-    //var g = <XTypeGroup>[];
-    //for(var a in acceptedTypeGroups){
-    //  g.add(XTypeGroup(label: a.label, extensions: a.extensions));
-    //}
-    var filePath = await getDirectoryPath(
-      initialDirectory: initialPath,
-    );
-    path = filePath;
-  }else{
-    //No direct save methods, just name it
-    path = await FilePicker.platform.getDirectoryPath();
-    //if(dirPath != null){
-    //  var dir = Directory(dirPath);
-    //  if(defaultName == null){
-    //    defaultName = "file";
-    //  }
-    //  var normName = Normalize(defaultName);
-    //  var uniqueName = UniqueName(dir, normName);
-    //  path = join(dirPath, uniqueName);      
-    //}
-  }
-  return path;
-}
+//Future<String?> SelectExistingFolder(
+//{
+//  String? defaultName,
+//  String? initialPath,
+//  //List<TypeGroup> acceptedTypeGroups = const [],
+//}
+//)async{
+//  String? path;
+//  if(_USE_FILE_SELECTOR){
+//    //var g = <XTypeGroup>[];
+//    //for(var a in acceptedTypeGroups){
+//    //  g.add(XTypeGroup(label: a.label, extensions: a.extensions));
+//    //}
+//    var filePath = await getDirectoryPath(
+//      initialDirectory: initialPath,
+//    );
+//    path = filePath;
+//  }else{
+//    //No direct save methods, just name it
+//    path = await FilePicker.platform.getDirectoryPath();
+//    //if(dirPath != null){
+//    //  var dir = Directory(dirPath);
+//    //  if(defaultName == null){
+//    //    defaultName = "file";
+//    //  }
+//    //  var normName = Normalize(defaultName);
+//    //  var uniqueName = UniqueName(dir, normName);
+//    //  path = join(dirPath, uniqueName);      
+//    //}
+//  }
+//  return path;
+//}
 
 
 class _FileNameInput extends StatefulWidget {
