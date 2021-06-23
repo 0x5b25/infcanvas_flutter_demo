@@ -435,7 +435,13 @@ class _LayerEntryState extends State<_LayerEntry> {
     widget.window.RemoveLayer(widget.layer);
   }
 
- 
+  //ui.Image? _cachedThumb;
+//
+  //ui.Image? get thumb{
+  //  if(widget.layer.isValid)
+  //    _cachedThumb = widget.layer.GetThumbnail();
+  //  return _cachedThumb;
+  //}
 
   late final _menu = CustomMenuPage(
     name: 'Layer Menu',
@@ -666,13 +672,13 @@ class _LayerEntryState extends State<_LayerEntry> {
       oldWidget.repaint?.removeListener(_RepaintCallback);
       widget.repaint?.addListener(_RepaintCallback);
     }
-    if(widget.layer != oldWidget.layer){
-      oldWidget.layer.Dispose();
-    }
+    //if(widget.layer != oldWidget.layer){
+    //  oldWidget.layer.Dispose();
+    //}
   }
   @override void dispose() {
     super.dispose();
-    widget.layer.Dispose();
+    //widget.layer.Dispose();
     widget.repaint?.removeListener(_RepaintCallback);
   }
 
