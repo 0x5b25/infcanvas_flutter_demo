@@ -19,18 +19,18 @@ children index
     V
 
 
- canvas size = 2^3 = 8
-           tree          LoD   depth                    offsets
-        ____+____               0  <--root                +0    1 << (0-1)
-       /         \		   	   
-     _+_         _+_            1                         +1    1 << (1-1)
-    /   \       /   \	   	   
-   +     +     +     +          2                         +2    1 << (2-1)
-  / \   / \   / \   / \	   	   
- #   # #   # #   # #   #   0    3  <--originDepth         +4    1 << (3-1)
-	|   | |   | |   | |   |   1       <--subdivide nodes
-	|   | |   | |   | |   |   2
-	|   | |   | |   | |   |   3..
+canvas size = 2^3 = 8
+          tree          LoD   depth                    offsets
+       ____+____               0  <--root                +0    1 << (0-1)
+      /         \		   	   
+    _+_         _+_            1                         +1    1 << (1-1)
+   /   \       /   \	   	   
+  +     +     +     +          2                         +2    1 << (2-1)
+ / \   / \   / \   / \	   	   
+#   # #   # #   # #   #   0    3  <--originDepth         +4    1 << (3-1)
+|   | |   | |   | |   |   1       <--subdivide nodes
+|   | |   | |   | |   |   2
+|   | |   | |   | |   |   3..
 indices:                       index + offset = tree path
 -4  -3-2  -1 0   1 2   3
 MSB:                       
